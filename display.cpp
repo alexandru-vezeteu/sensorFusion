@@ -1,7 +1,6 @@
-#define PORT "/dev/tty.SLAB_USBtoUART"   // macOS UART for RPLIDAR
 #define SCALE 10  // Distance scale for screen
-#define SCREENX 1920 // Size of Display window
-#define SCREENY 1080
+#define SCREENX 1024 // Size of Display window
+#define SCREENY 1024
 #define STARTX 100  // Coordinates to place window
 #define STARTY 100
 
@@ -100,19 +99,31 @@ void renderScreen(void){
     op_result = drv->grabScanDataHq(nodes, count);
     if (SL_IS_OK(op_result)) {
         drv->ascendScanData(nodes, count);
+        std::cout<<count<<std::endl;
         for (int pos = 0; pos < (int)count ; ++pos) {
             theta = (360-((nodes[pos].angle_z_q14 * 90.f / (1 << 14)))/360)*2*M_PI;
-            dist = (nodes[pos].dist_mm_q2/4.0f)/SCALE;
+            dist = (nodes[pos].dist_mm_q2/4.0f);
+            if(dist>12000)
+            {
+                continue;
+            }
+            if(dist ==0)
+            {
+                continue;
+            }
+            //std::cout<<dist<<" "<<theta<<", ";
+            dist = dist/SCALE;
             quality = nodes[pos].quality;
             // Display
             if(quality == 0) {
-                point_polar(theta, dist, SCREENX/2, SCREENY/2, 3.0f, RED);
+                point_polar(theta, dist, SCREENX/2, SCREENY/2, 4*3.0f, RED);
             }
             else {
-                point_polar(theta, dist, SCREENX/2, SCREENY/2, 1.5f, BLUE);
+                point_polar(theta, dist, SCREENX/2, SCREENY/2, 4*1.5f, BLUE);
             }
             // printf("\r > Data: %f %f %d      ",theta,dist,quality);
         }
+        
     }
     else
     {
@@ -168,7 +179,7 @@ int main(int argc, char** argv) {
 
     std::vector<sl::LidarScanMode> scanModes;
     drv->getAllSupportedScanModes(scanModes);
-    id = scanModes[0].id;
+    id = scanModes[1].id;
 
    
     
