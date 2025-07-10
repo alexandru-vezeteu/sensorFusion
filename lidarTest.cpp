@@ -18,9 +18,6 @@ using namespace std::chrono_literals;
 
 int main()
 {
-    
-
-
     ///  Create a communication channel instance
     //sl::IChannel* _channel;
     sl::Result<sl::IChannel*> channel = sl::createSerialPortChannel("/dev/ttyUSB0", 115200);
