@@ -71,7 +71,7 @@ int main()
         return EXIT_FAILURE;
     }
 
-    std::string cameraId = cameras[0]->id();
+    std::string cameraId = cameras[1]->id();
 
     camera = cm->get(cameraId);
     camera->acquire();
