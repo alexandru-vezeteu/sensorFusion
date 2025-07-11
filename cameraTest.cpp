@@ -83,8 +83,8 @@ int main()
     camera->configure(config.get());
     std::cout << "Pixel format used: " << streamConfig.pixelFormat.toString() << std::endl;
     imageWidth = streamConfig.size.width;
-imageHeight = streamConfig.size.height;
-imageStride = streamConfig.stride;
+    imageHeight = streamConfig.size.height;
+    imageStride = streamConfig.stride;
     FrameBufferAllocator *allocator = new FrameBufferAllocator(camera);
 
     for (StreamConfiguration &cfg : *config) {

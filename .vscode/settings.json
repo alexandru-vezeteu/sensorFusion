@@ -2,6 +2,15 @@
     "files.associations": {
         "semaphore": "cpp",
         "stop_token": "cpp",
-        "memory": "cpp"
+        "memory": "cpp",
+        "chrono": "cpp",
+        "complex": "cpp",
+        "cstddef": "cpp",
+        "string": "cpp",
+        "string_view": "cpp",
+        "iomanip": "cpp",
+        "ostream": "cpp",
+        "system_error": "cpp",
+        "thread": "cpp"
     }
 }
