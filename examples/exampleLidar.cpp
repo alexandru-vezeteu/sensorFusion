@@ -3,10 +3,9 @@
 #include <limits>
 #include <thread>
 #include <chrono>
-#include "include/rplidar.h"
+#include "rplidar.h"
+#include "sl_lidar_driver.h"
 
-
-#include "include/sl_lidar_driver.h"
 using namespace std::chrono_literals;
 
 

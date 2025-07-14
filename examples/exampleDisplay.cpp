@@ -16,8 +16,8 @@
 #include <stdlib.h>
 
 #include <iostream>
-#include "include/rplidar.h"
-#include "include/sl_lidar_driver.h"
+#include "rplidar.h"
+#include "sl_lidar_driver.h"
 
 
 class color {
