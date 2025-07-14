@@ -3,7 +3,10 @@
 #include <memory>
 #include <sys/mman.h>
 #include <thread>
-#include <libcamera/libcamera.h>
+#include <libcamera/camera.h>
+#include <libcamera/camera_manager.h>
+#include <libcamera/framebuffer.h>
+#include <libcamera/framebuffer_allocator.h>
 #include <opencv2/opencv.hpp>
 
 using namespace libcamera;
@@ -76,7 +79,7 @@ int main()
     camera = cm->get(cameraId);
     camera->acquire();
     std::unique_ptr<CameraConfiguration> config = 
-    camera->generateConfiguration( { StreamRole::Viewfinder } );
+        camera->generateConfiguration( { StreamRole::Viewfinder } );
     StreamConfiguration &streamConfig = config->at(0);
     std::cout << "Default viewfinder configuration is: " << streamConfig.toString() << std::endl;
     
