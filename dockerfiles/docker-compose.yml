@@ -1,0 +1,15 @@
+services:
+  tutorial:
+    build:
+      context: .
+      dockerfile: tutorial.dockerfile
+    container_name: ros2_tutorial
+    stdin_open: true                # equivalent to -i
+    tty: true                       # equivalent to -t
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
+      - .:/workspace                  # Mount your workspace (optional)
+    network_mode: host               # Needed for DDS discovery and X11
