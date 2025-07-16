@@ -1,5 +1,6 @@
 services:
   tutorial:
+    image: tutorial:ros2
     build:
       context: .
       dockerfile: tutorial.dockerfile
