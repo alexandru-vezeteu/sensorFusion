@@ -8,6 +8,7 @@
 #include <libcamera/framebuffer.h>
 #include <libcamera/framebuffer_allocator.h>
 #include <opencv2/opencv.hpp>
+#include <libcamera/formats.h>
 
 using namespace libcamera;
 using namespace std::chrono_literals;
@@ -40,14 +41,16 @@ static void requestComplete(Request *request)
         unsigned int stride = imageStride;
 
         // Wrap in OpenCV Mat (assume RGB888)
-        cv::Mat rgbFrame(height, width, CV_8UC4, memory, stride);
+        cv::Mat rgbFrame(height, width, CV_8UC3, memory, stride);
 
         // OpenCV assumes BGR, so convert if needed
-        cv::Mat bgrFrame;
-        cv::cvtColor(rgbFrame, bgrFrame,cv::COLOR_BGRA2BGR);
+        // cv::Mat bgrFrame;
+        // cv::cvtColor(rgbFrame, bgrFrame,cv::COLOR_RGB2BGR);
 
         // Show the image
-        cv::imshow("Camera", bgrFrame);
+        cv::namedWindow("Camera", cv::WINDOW_NORMAL);
+        cv::namedWindow("Camera", cv::WINDOW_AUTOSIZE); // default
+        cv::imshow("Camera", rgbFrame);
         cv::waitKey(1);
 
         munmap(memory, plane.length);
@@ -79,15 +82,17 @@ int main()
     camera = cm->get(cameraId);
     camera->acquire();
     std::unique_ptr<CameraConfiguration> config = 
-        camera->generateConfiguration( { StreamRole::Viewfinder } );
+        camera->generateConfiguration( { StreamRole::VideoRecording } );
     StreamConfiguration &streamConfig = config->at(0);
-    std::cout << "Default viewfinder configuration is: " << streamConfig.toString() << std::endl;
+    config->at(0).pixelFormat = libcamera::PixelFormat(libcamera::formats::RGB888);
     
     camera->configure(config.get());
     std::cout << "Pixel format used: " << streamConfig.pixelFormat.toString() << std::endl;
     imageWidth = streamConfig.size.width;
     imageHeight = streamConfig.size.height;
     imageStride = streamConfig.stride;
+    std::cout<<"Res: "<< imageHeight<<"x"<<imageWidth<<std::endl;
+
     FrameBufferAllocator *allocator = new FrameBufferAllocator(camera);
 
     for (StreamConfiguration &cfg : *config) {
@@ -98,7 +103,7 @@ int main()
         }
 
         size_t allocated = allocator->buffers(cfg.stream()).size();
-        std::cout << "Allocated " << allocated << " buffers for stream" << std::endl;
+        //std::cout << "Allocated " << allocated << " buffers for stream" << std::endl;
     }   
     Stream *stream = streamConfig.stream();
     const std::vector<std::unique_ptr<FrameBuffer>> &buffers = allocator->buffers(stream);

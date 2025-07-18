@@ -6,6 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install ROS 2 tools (colcon, dependencies)
 RUN apt-get update && apt-get install -y \
     python3-colcon-common-extensions \
+    ros-humble-example-interfaces \
     ros-humble-rqt \
     ros-humble-rviz2 \
     vim \
