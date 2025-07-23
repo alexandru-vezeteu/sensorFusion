@@ -22,6 +22,7 @@ services:
     build:
       context: ..
       dockerfile: dockerfiles/cameraTest.dockerfile
+    container_name: camera_test
     stdin_open: true                # equivalent to -i
     tty: true                       # equivalent to -t
     environment:
@@ -38,6 +39,7 @@ services:
     build:
       context: ..
       dockerfile: dockerfiles/cameraRos.dockerfile
+    container_name: camera_ros
     stdin_open: true                # equivalent to -i
     tty: true                       # equivalent to -t
     environment:
@@ -48,3 +50,13 @@ services:
       - /run/udev:/run/udev:ro
     privileged: true
     network_mode: host
+  
+  # cameraPipeline:
+
+  # lidarNode:
+
+  # serverVisualization:
+
+  # slam:
+
+  # fuser:
