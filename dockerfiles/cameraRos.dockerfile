@@ -45,14 +45,11 @@ FROM ros:humble-ros-base AS camera_ros_builder
 	RUN python3 -m pip install --upgrade meson ninja
 
 
-
-	COPY --from=libcamera_builder /libcamera_build/ /libcamera_build
-	RUN cd /libcamera_build/libcamera/build && ninja install && cd / && rm -rf libcamera_build
-
 	COPY --from=kmsxx_builder /kmsxx_build /kmsxx_build
 	RUN cd /kmsxx_build/kmsxx/build && ninja install && cd / && rm -rf kmsxx_build
 	
-
+	COPY --from=libcamera_builder /libcamera_build/ /libcamera_build
+	RUN cd /libcamera_build/libcamera/build && ninja install && cd / && rm -rf libcamera_build
 
 
 

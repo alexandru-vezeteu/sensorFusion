@@ -17,27 +17,27 @@ services:
   #   privileged: true
   #   network_mode: host               # Needed for DDS discovery and X11
 
-  cameraTest:
-    image: camera:test
-    build:
-      context: ..
-      dockerfile: dockerfiles/cameraTest.dockerfile
-    container_name: camera_test
-    stdin_open: true                # equivalent to -i
-    tty: true                       # equivalent to -t
-    environment:
-      - DISPLAY=${DISPLAY}
-      - QT_X11_NO_MITSHM=1
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
-      - /run/udev:/run/udev:ro
-    privileged: true
-    network_mode: host
+  # cameraTest:
+  #   image: camera:test
+  #   build:
+  #     context: ..
+  #     dockerfile: dockerfiles/cameraTest.dockerfile
+  #   container_name: camera_test
+  #   stdin_open: true                # equivalent to -i
+  #   tty: true                       # equivalent to -t
+  #   environment:
+  #     - DISPLAY=${DISPLAY}
+  #     - QT_X11_NO_MITSHM=1
+  #   volumes:
+  #     - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
+  #     - /run/udev:/run/udev:ro
+  #   privileged: true
+  #   network_mode: host
 
   cameraROS:
     image: camera:ros
     build:
-      context: ..
+      context: .
       dockerfile: dockerfiles/cameraRos.dockerfile
     container_name: camera_ros
     stdin_open: true                # equivalent to -i
@@ -48,6 +48,7 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
       - /run/udev:/run/udev:ro
+      - ./libs/filters:/ros_ws/src/filters
     privileged: true
     network_mode: host
   
