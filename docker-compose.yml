@@ -48,7 +48,7 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
       - /run/udev:/run/udev:ro
-      - ./libs/filters:/ros_ws/src/filters
+      - ./rosNodes/filters:/ros_ws/src/filters
     privileged: true
     network_mode: host
   
