@@ -2,7 +2,6 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <opencv2/core.hpp>
 #include <cv_bridge/cv_bridge.h>
-
 #include <rclcpp_components/register_node_macro.hpp>
 
 class Filter : public rclcpp::Node
