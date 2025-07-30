@@ -14,8 +14,10 @@ std::vector<std::string> getImageFiles(const std::string& directoryPath)
     {
         if (entry.is_regular_file() ) 
         {
+            
             auto extension = entry.path().extension();
-            if(!extension.has_extension()) continue;
+            std::cout<<extension<<std::endl;
+            
             
             if (!extension.compare(".jpg")  || 
                 !extension.compare(".png")  || 
@@ -40,12 +42,13 @@ int main(int argc, char** argv)
 
     std::string imageFolder = argv[1];
     int rows{}, columns{};
-    float size{};
+    float squareSize{};
+    
     try
     {
         rows = std::stoi(argv[2]);
         columns = std::stoi(argv[3]);
-        size = std::stof(argv[4]);
+        squareSize = std::stof(argv[4]);
     }
     catch(...)
     {
@@ -54,12 +57,8 @@ int main(int argc, char** argv)
         return -1;
     }
     
-
-
-    
     cv::Size boardSize(columns, rows);
-    float squareSize = 25.0f;
-
+    
     std::vector<std::vector<cv::Point3f>> objectPoints;
     std::vector<std::vector<cv::Point2f>> imagePoints;
 
@@ -94,7 +93,11 @@ int main(int argc, char** argv)
 
 
         bool found = cv::findChessboardCorners(image, boardSize, corners,
-                                               cv::CALIB_CB_ADAPTIVE_THRESH + cv::CALIB_CB_NORMALIZE_IMAGE + cv::CALIB_CB_FAST_CHECK);
+                                               0
+                                               | cv::CALIB_CB_ADAPTIVE_THRESH
+                                               //| cv::CALIB_CB_NORMALIZE_IMAGE
+                                               //| cv::CALIB_CB_FAST_CHECK
+                                            );
 
         if (found)
         {
@@ -164,6 +167,7 @@ int main(int argc, char** argv)
             std::cerr << "Warning: Could not load test image for undistortion." << std::endl;
         }
     }
+    cv::FileStorage fd("whatever", cv::FileStorage::READ);
 
     return 0;
 }

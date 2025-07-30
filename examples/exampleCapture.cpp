@@ -9,6 +9,8 @@
 #include <libcamera/framebuffer_allocator.h>
 #include <opencv2/opencv.hpp>
 #include <libcamera/formats.h>
+#include <condition_variable>
+#include <filesystem>
 
 using namespace libcamera;
 using namespace std::chrono_literals;
@@ -16,6 +18,10 @@ static std::shared_ptr<Camera> camera;
 static unsigned int imageWidth;
 static unsigned int imageHeight;
 static unsigned int imageStride;
+
+std::mutex mtx;
+std::condition_variable cond_var;
+bool cond = false;
 
 static void requestComplete(Request *request)
 {
@@ -40,20 +46,40 @@ static void requestComplete(Request *request)
         unsigned int width = imageWidth;
         unsigned int height = imageHeight;
         unsigned int stride = imageStride;
+        
+        static bool windowCreated = false;
+        if (!windowCreated) {
+            cv::namedWindow("Camera", cv::WINDOW_NORMAL);
+            
+            windowCreated = true;
+        }
 
         cv::Mat rgbFrame(height, width, CV_8UC3, memory, stride);
 
         
-        cv::namedWindow("Camera", cv::WINDOW_NORMAL);
-        cv::namedWindow("Camera", cv::WINDOW_AUTOSIZE);
+        
+        
         cv::imshow("Camera", rgbFrame);
+        
         int key = cv::waitKey(1);
-        if(key == 'c')
+        switch(key)
         {
-            std::string filename = "saved_image_" + std::to_string(imageCount++) + ".png";
-            cv::imwrite(filename, rgbFrame);
-            std::cout << "Image saved as: " << filename << std::endl;
+            case 'c':
+            {
+                std::string filename = "pics/saved_image_" + std::to_string(imageCount++) + ".png";
+                cv::imwrite(filename, rgbFrame);
+                std::cout << "Image saved as: " << filename << std::endl;
+            } break;
+            case 'q':
+            {
+                std::unique_lock lck{mtx};
+                cond = true;
+                cond_var.notify_one();
+                munmap(memory, plane.length);
+                return;
+            } break;
         }
+        
 
         munmap(memory, plane.length);
     }
@@ -71,11 +97,11 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    int id{}, width{}, height{};
+    int cameraNumber{}, width{}, height{};
     
     try
     {
-        id = std::stoi(argv[1]);
+        cameraNumber = std::stoi(argv[1]);
         width = std::stoi(argv[2]);
         height = std::stof(argv[3]);
     }
@@ -84,12 +110,24 @@ int main(int argc, char** argv)
         std::cerr << "Usage: " << argv[0] << " id width height" << std::endl;
         return -1;
     }
-    std::cout<<id<<" "<<width<<" "<<height<<std::endl;
-    // Code to follow
+    
+
+    std::filesystem::path pics_dir = "pics";
+    try {
+        if (!std::filesystem::exists(pics_dir)) {
+            std::filesystem::create_directory(pics_dir);
+            std::cout << "Created directory: " << pics_dir << std::endl;
+        } else {
+            std::cout << "Directory already exists: " << pics_dir << std::endl;
+        }
+    } catch (const std::filesystem::filesystem_error& e) {
+        std::cerr << "Error creating directory " << pics_dir << ": " << e.what() << std::endl;
+        return -1;
+    }
+
     std::unique_ptr<CameraManager> cm = std::make_unique<CameraManager>();
     cm->start();
-    for (auto const &camera : cm->cameras())
-        std::cout << camera->id() << std::endl;
+    
     
     auto cameras = cm->cameras();
     if (cameras.empty()) {
@@ -99,7 +137,7 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    std::string cameraId = cameras[id]->id();
+    std::string cameraId = cameras[cameraNumber]->id();
 
     camera = cm->get(cameraId);
     camera->acquire();
@@ -110,12 +148,11 @@ int main(int argc, char** argv)
     config->at(0).size.height =  height;
     config->at(0).size.width = width;
 
+    config->validate();
     camera->configure(config.get());
-    std::cout << "Pixel format used: " << streamConfig.pixelFormat.toString() << std::endl;
     imageWidth = streamConfig.size.width;
     imageHeight = streamConfig.size.height;
     imageStride = streamConfig.stride;
-    std::cout<<"Res: "<< imageHeight<<"x"<<imageWidth<<std::endl;
 
     FrameBufferAllocator *allocator = new FrameBufferAllocator(camera);
 
@@ -125,31 +162,29 @@ int main(int argc, char** argv)
             std::cerr << "Can't allocate buffers" << std::endl;
             return -ENOMEM;
         }
-
         size_t allocated = allocator->buffers(cfg.stream()).size();
-        //std::cout << "Allocated " << allocated << " buffers for stream" << std::endl;
     }   
     Stream *stream = streamConfig.stream();
     const std::vector<std::unique_ptr<FrameBuffer>> &buffers = allocator->buffers(stream);
     std::vector<std::unique_ptr<Request>> requests;
     for (unsigned int i = 0; i < buffers.size(); ++i) {
-    std::unique_ptr<Request> request = camera->createRequest();
-    if (!request)
-    {
-        std::cerr << "Can't create request" << std::endl;
-        return -ENOMEM;
-    }
+        std::unique_ptr<Request> request = camera->createRequest();
+        if (!request)
+        {
+            std::cerr << "Can't create request" << std::endl;
+            return -ENOMEM;
+        }
 
-    const std::unique_ptr<FrameBuffer> &buffer = buffers[i];
-    int ret = request->addBuffer(stream, buffer.get());
-    if (ret < 0)
-    {
-        std::cerr << "Can't set buffer for request"
-              << std::endl;
-        return ret;
-    }
+        const std::unique_ptr<FrameBuffer> &buffer = buffers[i];
+        int ret = request->addBuffer(stream, buffer.get());
+        if (ret < 0)
+        {
+            std::cerr << "Can't set buffer for request"
+                << std::endl;
+            return ret;
+        }
 
-    requests.push_back(std::move(request));
+        requests.push_back(std::move(request));
     }
     camera->requestCompleted.connect(requestComplete);
 
@@ -157,8 +192,11 @@ int main(int argc, char** argv)
     for (std::unique_ptr<Request> &request : requests)
         camera->queueRequest(request.get());
 
+    std::cout<<std::endl<<std::endl<<std::endl;
+    std::cout<<"Click on the video window and press c to capture pic and q to exit."<<std::endl;
+    std::unique_lock lck{mtx};
+    cond_var.wait(lck, [](){return cond;});
 
-    std::this_thread::sleep_for(1h);
     camera->stop();
     allocator->free(stream);
     delete allocator;
