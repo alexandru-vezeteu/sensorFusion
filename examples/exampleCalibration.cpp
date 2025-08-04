@@ -82,6 +82,7 @@ int main(int argc, char** argv)
     int successCount = 0;
 
     cv::Mat image{};
+    cv::namedWindow("Corners Found", cv::WINDOW_NORMAL);
     for (const auto& filePath : imageFiles)
     {
         image = cv::imread(filePath, cv::IMREAD_GRAYSCALE);
@@ -158,7 +159,8 @@ int main(int argc, char** argv)
         {
             cv::Mat undistortedImage;
             cv::undistort(testImage, undistortedImage, cameraMatrix, distCoeffs);
-
+            cv::namedWindow("Original Image", cv::WINDOW_NORMAL);
+            cv::namedWindow("Undistorted Image", cv::WINDOW_NORMAL);
             cv::imshow("Original Image", testImage);
             cv::imshow("Undistorted Image", undistortedImage);
             cv::waitKey(0);
@@ -167,7 +169,7 @@ int main(int argc, char** argv)
             std::cerr << "Warning: Could not load test image for undistortion." << std::endl;
         }
     }
-    cv::FileStorage fd("whatever", cv::FileStorage::READ);
+    
 
     return 0;
 }
