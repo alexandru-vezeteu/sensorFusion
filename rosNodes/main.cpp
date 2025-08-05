@@ -50,6 +50,11 @@ const float NMS_THRESHOLD = 0.45f;
     std::vector<int> classIds_;
     std::vector<float> confidences_;
 
+using namespace cv;
+using namespace std;
+using namespace cv::dnn;
+
+    
     void detectObjects(cv::Mat& frame)
     {
     
