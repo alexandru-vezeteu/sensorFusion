@@ -10,12 +10,19 @@
 #include <opencv2/opencv.hpp>
 #include <libcamera/formats.h>
 
+#include <condition_variable>
+#include <mutex>
+
 using namespace libcamera;
 using namespace std::chrono_literals;
 static std::shared_ptr<Camera> camera;
 static unsigned int imageWidth;
 static unsigned int imageHeight;
 static unsigned int imageStride;
+
+bool cond = false;
+std::condition_variable cond_var;
+std::mutex mtx;
 
 static void requestComplete(Request *request)
 {
@@ -35,23 +42,30 @@ static void requestComplete(Request *request)
             return;
         }
 
-        // These should match your stream config
         unsigned int width = imageWidth;
         unsigned int height = imageHeight;
         unsigned int stride = imageStride;
 
-        // Wrap in OpenCV Mat (assume RGB888)
         cv::Mat rgbFrame(height, width, CV_8UC3, memory, stride);
 
-        // OpenCV assumes BGR, so convert if needed
-        // cv::Mat bgrFrame;
-        // cv::cvtColor(rgbFrame, bgrFrame,cv::COLOR_RGB2BGR);
-
-        // Show the image
+       
         cv::namedWindow("Camera", cv::WINDOW_NORMAL);
-        cv::namedWindow("Camera", cv::WINDOW_AUTOSIZE); // default
+       
         cv::imshow("Camera", rgbFrame);
-        cv::waitKey(1);
+        int key = cv::waitKey(1);
+        switch(key)
+        {
+            case 'Q':
+            case 'q':
+            {
+                std::unique_lock lck{mtx};
+                cond = true;
+                cv::destroyAllWindows();
+                munmap(memory, plane.length);
+                cond_var.notify_one();
+                return;
+            }
+        }
 
         munmap(memory, plane.length);
     }
@@ -61,8 +75,28 @@ static void requestComplete(Request *request)
 }
 
 
-int main()
+int main(int argc, char** argv)
 {
+     if (argc < 4) 
+    {
+        std::cerr << "Usage: " << argv[0] << " id width height" << std::endl;
+        return -1;
+    }
+
+    int cameraNumber{}, width{}, height{};
+    
+    try
+    {
+        cameraNumber = std::stoi(argv[1]);
+        width = std::stoi(argv[2]);
+        height = std::stof(argv[3]);
+    }
+    catch(...)
+    {
+        std::cerr << "Usage: " << argv[0] << " id width height" << std::endl;
+        return -1;
+    }
+
     // Code to follow
     std::unique_ptr<CameraManager> cm = std::make_unique<CameraManager>();
     cm->start();
@@ -77,7 +111,7 @@ int main()
         return EXIT_FAILURE;
     }
 
-    std::string cameraId = cameras[1]->id();
+    std::string cameraId = cameras[cameraNumber]->id();
 
     camera = cm->get(cameraId);
     camera->acquire();
@@ -85,7 +119,8 @@ int main()
         camera->generateConfiguration( { StreamRole::VideoRecording } );
     StreamConfiguration &streamConfig = config->at(0);
     config->at(0).pixelFormat = libcamera::PixelFormat(libcamera::formats::RGB888);
-    
+    config->at(0).size.height = height;
+    config->at(0).size.width = width;
     camera->configure(config.get());
     std::cout << "Pixel format used: " << streamConfig.pixelFormat.toString() << std::endl;
     imageWidth = streamConfig.size.width;
@@ -134,7 +169,11 @@ int main()
         camera->queueRequest(request.get());
 
 
-    std::this_thread::sleep_for(30s);
+    {
+        std::unique_lock lck(mtx);
+        cond_var.wait(lck, [](){return cond;});
+    }
+
     camera->stop();
     allocator->free(stream);
     delete allocator;
