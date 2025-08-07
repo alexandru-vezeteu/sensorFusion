@@ -1,11 +1,15 @@
 cmake_minimum_required(VERSION 3.2)
 
+
+
 find_package(OpenGL REQUIRED)
 find_package(GLUT REQUIRED)
 find_package(GLEW REQUIRED)
 
 find_package(OpenCV REQUIRED)
 find_package(PkgConfig REQUIRED)
+find_package(Boost REQUIRED COMPONENTS container)
+
 pkg_check_modules(LIBCAMERA REQUIRED libcamera)
 
 
@@ -44,6 +48,7 @@ add_executable(lidarExample exampleLidar.cpp)
 add_executable(cameraExample exampleCamera.cpp)
 add_executable(calibrationExample exampleCalibration.cpp)
 add_executable(captureExample exampleCapture.cpp)
+add_executable(2camerasExample example2Cameras.cpp)
 
 target_include_directories(displayExample PUBLIC
                             ${OPENGL_INCLUDE_DIRS}  
@@ -91,3 +96,15 @@ target_link_libraries(captureExample
                     ${OpenCV_LIBRARIES} 
                     ${LIBCAMERA_LIBRARIES}
                     )
+
+target_include_directories(2camerasExample PUBLIC
+                            ${OpenCV_INCLUDE_DIRS}
+                            ${LIBCAMERA_INCLUDE_DIRS}
+                            ${Boost_INCLUDE_DIRS}
+                            )
+target_link_libraries(2camerasExample
+                    ${OpenCV_LIBRARIES} 
+                    ${LIBCAMERA_LIBRARIES}
+                    Boost::container
+                    )
+
