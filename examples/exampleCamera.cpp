@@ -100,8 +100,7 @@ int main(int argc, char** argv)
     // Code to follow
     std::unique_ptr<CameraManager> cm = std::make_unique<CameraManager>();
     cm->start();
-    for (auto const &camera : cm->cameras())
-        std::cout << camera->id() << std::endl;
+    
     
     auto cameras = cm->cameras();
     if (cameras.empty()) {
@@ -121,6 +120,7 @@ int main(int argc, char** argv)
     config->at(0).pixelFormat = libcamera::PixelFormat(libcamera::formats::RGB888);
     config->at(0).size.height = height;
     config->at(0).size.width = width;
+    config->validate();
     camera->configure(config.get());
     std::cout << "Pixel format used: " << streamConfig.pixelFormat.toString() << std::endl;
     imageWidth = streamConfig.size.width;
@@ -144,23 +144,23 @@ int main(int argc, char** argv)
     const std::vector<std::unique_ptr<FrameBuffer>> &buffers = allocator->buffers(stream);
     std::vector<std::unique_ptr<Request>> requests;
     for (unsigned int i = 0; i < buffers.size(); ++i) {
-    std::unique_ptr<Request> request = camera->createRequest();
-    if (!request)
-    {
-        std::cerr << "Can't create request" << std::endl;
-        return -ENOMEM;
-    }
+        std::unique_ptr<Request> request = camera->createRequest();
+        if (!request)
+        {
+            std::cerr << "Can't create request" << std::endl;
+            return -ENOMEM;
+        }
 
-    const std::unique_ptr<FrameBuffer> &buffer = buffers[i];
-    int ret = request->addBuffer(stream, buffer.get());
-    if (ret < 0)
-    {
-        std::cerr << "Can't set buffer for request"
-              << std::endl;
-        return ret;
-    }
+        const std::unique_ptr<FrameBuffer> &buffer = buffers[i];
+        int ret = request->addBuffer(stream, buffer.get());
+        if (ret < 0)
+        {
+            std::cerr << "Can't set buffer for request"
+                << std::endl;
+            return ret;
+        }
 
-    requests.push_back(std::move(request));
+        requests.push_back(std::move(request));
     }
     camera->requestCompleted.connect(requestComplete);
 

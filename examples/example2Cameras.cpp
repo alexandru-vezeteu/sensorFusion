@@ -31,6 +31,7 @@ class VideoHandler
     libcamera::PixelFormat pixelFormat;
     
     boost::circular_buffer<cv::Mat> queue;
+    std::mutex queue_mtx; // Added a mutex to protect the queue
 
     std::shared_ptr<libcamera::Camera> camera;
 
@@ -118,32 +119,39 @@ class VideoHandler
 
     ~VideoHandler()
     {
+        
+        camera->requestCompleted.disconnect(this, &VideoHandler::requestComplete);
+        
         camera->stop();
-        allocator->free(stream);
-        delete allocator;
+        if (allocator) {
+            allocator->free(stream);
+            delete allocator;
+        }
         camera->release();
         camera.reset();
     }
 
-
-    // VideoHandler(const VideoHandler& vc) = delete;
-    // Video
-
-
-
-    boost::circular_buffer<cv::Mat>& getQueue()
+    boost::circular_buffer<cv::Mat> getQueue()
+    {
+        std::unique_lock<std::mutex> lck(queue_mtx);
+        return queue;
+    }
+    
+    
+    boost::circular_buffer<cv::Mat>& getQueueRef()
     {
         return queue;
     }
-
-    void requestStop()
+    std::mutex& getQueueMutex()
     {
-        cond = false;
+        return queue_mtx;
     }
+
+
     private:
     void requestComplete(libcamera::Request* request)
     {
-        std::cout<<"SJKSDKSD\n";
+        std::cout<<"LOLOLOL\n";
         if(!cond)
             return;
 
@@ -163,11 +171,11 @@ class VideoHandler
                 return;
             }
 
-
+            // Lock the mutex before pushing to the queue
+            std::lock_guard<std::mutex> lck(queue_mtx);
             cv::Mat rgbFrame(height, width, CV_8UC3, memory, stride);
-            queue.push_back(rgbFrame);
-            std::cout<<camera->id()<<"\n";
-
+            queue.push_back(rgbFrame.clone()); // It's safer to clone the frame
+            
             munmap(memory, plane.length);
         }
 
@@ -180,57 +188,72 @@ std::condition_variable cond_var;
 std::mutex mtx;
 bool stop = false;
 
-void display2Cameras(   boost::circular_buffer<cv::Mat>& q1, 
-                        boost::circular_buffer<cv::Mat>& q2
+void display2Cameras(   boost::circular_buffer<cv::Mat>& q1, std::mutex& mtx1,
+                        boost::circular_buffer<cv::Mat>& q2, std::mutex& mtx2
                     )
 {
-    cv::Mat m1{};
-    cv::Mat m2{};
+    cv::Mat m1, m2;
     cv::namedWindow("Display 2 cameras", cv::WINDOW_NORMAL);
     while(true)
     {  
-        if(!q1.empty())
         {
-            m1 = q1.front();
-            q1.pop_front();
+            std::lock_guard<std::mutex> lck1(mtx1);
+            if(!q1.empty())
+            {
+                m1 = q1.front();
+                q1.pop_front();
+            }
         }
-        if(!q2.empty())
         {
-            m2 = q2.front();
-            q2.pop_front();
+            std::lock_guard<std::mutex> lck2(mtx2);
+            if(!q2.empty())
+            {
+                m2 = q2.front();
+                q2.pop_front();
+            }
         }
         
 
         cv::Mat disp;
-        cv::hconcat(m1, m2, disp);
-        if(!disp.empty())
+        if (!m1.empty() && !m2.empty())
         {
-            
+            cv::hconcat(m1, m2, disp);
             cv::imshow("Display 2 cameras", disp);
-            int key = cv::waitKey(1);
-            switch(key)
+        }
+        else if (!m1.empty())
+        {
+            cv::imshow("Display 2 cameras", m1);
+        }
+        else if (!m2.empty())
+        {
+            cv::imshow("Display 2 cameras", m2);
+        }
+        
+        int key = cv::waitKey(1);
+        switch(key)
+        {
+            case 27:
+            case 'q':
+            case 'Q':
             {
-                case 27:
-                case 'q':
-                case 'Q':
-                {
-                    std::unique_lock lck{mtx};
-                    stop = true;
-                    cond_var.notify_one();
-                    return;
-                }
-                break;
+                std::unique_lock lck{mtx};
+                stop = true;
+                cond_var.notify_one();
+                return;
             }
+            break;
         }
     }
 }
+
+
 
 
 int main(int argc, char** argv)
 {
      if (argc < 7) 
     {
-        std::cerr << "Usage: " << argv[0] << " id width height" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " id width height id2 width2 height2" << std::endl;
         return -1;
     }
 
@@ -249,7 +272,7 @@ int main(int argc, char** argv)
     }
     catch(...)
     {
-        std::cerr << "Usage: " << argv[0] << " id width height" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " id width height id2 width2 height2" << std::endl;
         return -1;
     }
 
@@ -259,10 +282,11 @@ int main(int argc, char** argv)
 
 
     {
-        auto c = cm->cameras()[cameraNumber1];
+        auto cameras = cm->cameras();
+        auto c= cm->get(cameras[cameraNumber1]->id());
         VideoHandler cam1{c, width1, height1};
 
-        c = cm->cameras()[cameraNumber2];
+        c = cm->get(cameras[cameraNumber2]->id());
         VideoHandler cam2{c, width2, height2};
 
         cam1.configure();
@@ -271,18 +295,14 @@ int main(int argc, char** argv)
         cam1.startStreaming();
         cam2.startStreaming();
                 
-
-
-        //std::thread thread{display2Cameras, std::ref(cam1.getQueue()), std::ref(cam2.getQueue())};
-        std::this_thread::sleep_for(5s);
-        // std::unique_lock lck(mtx);
-        // cond_var.wait(lck, [](){return stop;});
-
+        std::thread thread{display2Cameras, std::ref(cam1.getQueueRef()), std::ref(cam1.getQueueMutex()), 
+                                            std::ref(cam2.getQueueRef()), std::ref(cam2.getQueueMutex())};
+        
+        std::unique_lock lck(mtx);
+        cond_var.wait(lck, [](){return stop;});
+        thread.join(); // Wait for the thread to finish
     }
     
-
-
-
 
     cm->stop();
 }
