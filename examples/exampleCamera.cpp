@@ -74,7 +74,10 @@ static void requestComplete(Request *request)
     camera->queueRequest(request);
 }
 
-
+void m(libcamera::Request* r)
+{
+    std::cout<<"LOLOLOLOLO\n";
+}
 int main(int argc, char** argv)
 {
      if (argc < 4) 

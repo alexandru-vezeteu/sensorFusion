@@ -2,202 +2,116 @@
 #include <iostream>
 #include <memory>
 #include <sys/mman.h>
-#include <functional>
-
+#include <thread>
 #include <libcamera/camera.h>
 #include <libcamera/camera_manager.h>
 #include <libcamera/framebuffer.h>
 #include <libcamera/framebuffer_allocator.h>
-#include <libcamera/formats.h>
-
-
 #include <opencv2/opencv.hpp>
-#include <condition_variable>
-#include <thread>
-#include <mutex>
+#include <libcamera/formats.h>
 #include <boost/circular_buffer.hpp>
 
-#include <chrono>
+#include <condition_variable>
+#include <mutex>
+
+using namespace libcamera;
 using namespace std::chrono_literals;
-
-class VideoHandler
-{
-    private:
-    bool cond;
-
-    size_t width;
-    size_t height;
-    size_t stride;
-    libcamera::PixelFormat pixelFormat;
-    
-    boost::circular_buffer<cv::Mat> queue;
-    std::mutex queue_mtx; // Added a mutex to protect the queue
-
-    std::shared_ptr<libcamera::Camera> camera;
+static std::shared_ptr<Camera> camera1;
+static boost::circular_buffer<cv::Mat> q1;
+static unsigned int imageWidth1;
+static unsigned int imageHeight1;
+static unsigned int imageStride1;
 
 
-    libcamera::Stream *stream;
-    libcamera::FrameBufferAllocator *allocator;
-    std::unique_ptr<libcamera::CameraConfiguration> config;
 
-    std::shared_ptr<libcamera::StreamConfiguration> streamConfig;
+static std::shared_ptr<Camera> camera2;
+static boost::circular_buffer<cv::Mat> q2;
+static unsigned int imageWidth2;
+static unsigned int imageHeight2;
+static unsigned int imageStride2;
 
-    public:
-    VideoHandler(  std::shared_ptr<libcamera::Camera> camera, 
-                    size_t width, size_t height, size_t queue_size = 5,
-                    libcamera::PixelFormat pixelFormat = libcamera::formats::RGB888):
-
-                    height{height}, width{width}, camera{camera},
-                    cond{true}, pixelFormat{pixelFormat}, 
-                    queue{queue_size}, streamConfig{}
-    {
-        camera->acquire();
-    }
-
-    void configure()
-    {
-        config = 
-            camera->generateConfiguration( { libcamera::StreamRole::VideoRecording } );
-        streamConfig = std::make_shared<libcamera::StreamConfiguration>(config->at(0));
-        
-        config->at(0).pixelFormat   =   pixelFormat;
-        config->at(0).size.height   =   height;
-        config->at(0).size.width    =   width;
-        config->validate();
-        
-        camera->configure(config.get());
-
-        width   = streamConfig->size.width;
-        height  = streamConfig->size.height;
-        stride  = streamConfig->stride;
-    }
-    
-
-    void startStreaming()
-    {
-        allocator = new libcamera::FrameBufferAllocator(camera);
-        for (auto &cfg : *config) 
-        {
-            int ret = allocator->allocate(cfg.stream());
-            if (ret < 0) 
-            {
-                std::cerr << "Can't allocate buffers" << std::endl;
-                exit(-ENOMEM);
-            }
-            size_t allocated = allocator->buffers(cfg.stream()).size();
-        }
-        stream = streamConfig->stream();
-        const std::vector<std::unique_ptr<libcamera::FrameBuffer>> &buffers = allocator->buffers(stream);
-        std::vector<std::unique_ptr<libcamera::Request>> requests;
-        for (unsigned int i = 0; i < buffers.size(); ++i) {
-            std::unique_ptr<libcamera::Request> request = camera->createRequest();
-            if (!request)
-            {
-                std::cerr << "Can't create request" << std::endl;
-                exit(-ENOMEM);
-            }
-
-            const std::unique_ptr<libcamera::FrameBuffer> &buffer = buffers[i];
-            int ret = request->addBuffer(stream, buffer.get());
-            if (ret < 0)
-            {
-                std::cerr << "Can't set buffer for request"
-                    << std::endl;
-                exit(ret);
-            }
-
-            requests.push_back(std::move(request));
-        }
-        camera->requestCompleted.connect(this, &VideoHandler::requestComplete);
-
-        
-        camera->start();
-
-        for (auto &request : requests)
-            camera->queueRequest(request.get());
-    }
-
-    ~VideoHandler()
-    {
-        
-        camera->requestCompleted.disconnect(this, &VideoHandler::requestComplete);
-        
-        camera->stop();
-        if (allocator) {
-            allocator->free(stream);
-            delete allocator;
-        }
-        camera->release();
-        camera.reset();
-    }
-
-    boost::circular_buffer<cv::Mat> getQueue()
-    {
-        std::unique_lock<std::mutex> lck(queue_mtx);
-        return queue;
-    }
-    
-    
-    boost::circular_buffer<cv::Mat>& getQueueRef()
-    {
-        return queue;
-    }
-    std::mutex& getQueueMutex()
-    {
-        return queue_mtx;
-    }
-
-
-    private:
-    void requestComplete(libcamera::Request* request)
-    {
-        std::cout<<"LOLOLOL\n";
-        if(!cond)
-            return;
-
-        if (request->status() == libcamera::Request::RequestCancelled)
-            return;
-
-        const std::map<const libcamera::Stream *, libcamera::FrameBuffer *> &buffers = request->buffers();
-        for (auto bufferPair : buffers) {
-            libcamera::FrameBuffer *buffer = bufferPair.second;
-
-            const libcamera::FrameBuffer::Plane &plane = buffer->planes()[0];
-            int fd = plane.fd.get();
-
-            void *memory = mmap(NULL, plane.length, PROT_READ, MAP_SHARED, fd, 0);
-            if (memory == MAP_FAILED) {
-                std::cerr << "mmap failed" << std::endl;
-                return;
-            }
-
-            // Lock the mutex before pushing to the queue
-            std::lock_guard<std::mutex> lck(queue_mtx);
-            cv::Mat rgbFrame(height, width, CV_8UC3, memory, stride);
-            queue.push_back(rgbFrame.clone()); // It's safer to clone the frame
-            
-            munmap(memory, plane.length);
-        }
-
-        request->reuse(libcamera::Request::ReuseBuffers);
-        camera->queueRequest(request);
-    }
-};
-
+bool cond = false;
 std::condition_variable cond_var;
 std::mutex mtx;
-bool stop = false;
 
-void display2Cameras(   boost::circular_buffer<cv::Mat>& q1, std::mutex& mtx1,
-                        boost::circular_buffer<cv::Mat>& q2, std::mutex& mtx2
-                    )
+static void requestComplete1(Request *request)
+{
+    if (request->status() == Request::RequestCancelled)
+        return;
+
+    const std::map<const Stream *, FrameBuffer *> &buffers = request->buffers();
+    for (auto bufferPair : buffers) {
+        FrameBuffer *buffer = bufferPair.second;
+
+        const FrameBuffer::Plane &plane = buffer->planes()[0];
+        int fd = plane.fd.get();
+
+        void *memory = mmap(NULL, plane.length, PROT_READ, MAP_SHARED, fd, 0);
+        if (memory == MAP_FAILED) {
+            std::cerr << "mmap failed" << std::endl;
+            return;
+        }
+
+        unsigned int width = imageWidth1;
+        unsigned int height = imageHeight1;
+        unsigned int stride = imageStride1;
+
+        cv::Mat rgbFrame(height, width, CV_8UC3, memory, stride);
+
+       
+        q1.push_back(rgbFrame.clone());
+
+
+        munmap(memory, plane.length);
+    }
+
+    request->reuse(Request::ReuseBuffers);
+    camera1->queueRequest(request);
+}
+
+
+static void requestComplete2(Request *request)
+{
+    if (request->status() == Request::RequestCancelled)
+        return;
+
+    const std::map<const Stream *, FrameBuffer *> &buffers = request->buffers();
+    for (auto bufferPair : buffers) {
+        FrameBuffer *buffer = bufferPair.second;
+
+        const FrameBuffer::Plane &plane = buffer->planes()[0];
+        int fd = plane.fd.get();
+
+        void *memory = mmap(NULL, plane.length, PROT_READ, MAP_SHARED, fd, 0);
+        if (memory == MAP_FAILED) {
+            std::cerr << "mmap failed" << std::endl;
+            return;
+        }
+
+        unsigned int width = imageWidth2;
+        unsigned int height = imageHeight2;
+        unsigned int stride = imageStride2;
+
+        cv::Mat rgbFrame(height, width, CV_8UC3, memory, stride);
+
+       
+        q2.push_back(rgbFrame.clone());
+
+        munmap(memory, plane.length);
+    }
+
+    request->reuse(Request::ReuseBuffers);
+    camera2->queueRequest(request);
+}
+
+
+void display2Cameras()
 {
     cv::Mat m1, m2;
     cv::namedWindow("Display 2 cameras", cv::WINDOW_NORMAL);
     while(true)
     {  
         {
-            std::lock_guard<std::mutex> lck1(mtx1);
             if(!q1.empty())
             {
                 m1 = q1.front();
@@ -205,7 +119,6 @@ void display2Cameras(   boost::circular_buffer<cv::Mat>& q1, std::mutex& mtx1,
             }
         }
         {
-            std::lock_guard<std::mutex> lck2(mtx2);
             if(!q2.empty())
             {
                 m2 = q2.front();
@@ -237,8 +150,9 @@ void display2Cameras(   boost::circular_buffer<cv::Mat>& q1, std::mutex& mtx1,
             case 'Q':
             {
                 std::unique_lock lck{mtx};
-                stop = true;
-                cond_var.notify_one();
+                cond_var.notify_all();
+                cond = true;
+                cv::destroyAllWindows();
                 return;
             }
             break;
@@ -246,14 +160,13 @@ void display2Cameras(   boost::circular_buffer<cv::Mat>& q1, std::mutex& mtx1,
     }
 }
 
-
-
-
 int main(int argc, char** argv)
 {
+    q1 = boost::circular_buffer<cv::Mat>(5);
+    q2 = boost::circular_buffer<cv::Mat>(5);
      if (argc < 7) 
     {
-        std::cerr << "Usage: " << argv[0] << " id width height id2 width2 height2" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " id width height id width height" << std::endl;
         return -1;
     }
 
@@ -272,37 +185,493 @@ int main(int argc, char** argv)
     }
     catch(...)
     {
-        std::cerr << "Usage: " << argv[0] << " id width height id2 width2 height2" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " id width height id width height" << std::endl;
         return -1;
     }
 
-
-    std::unique_ptr<libcamera::CameraManager> cm = std::make_unique<libcamera::CameraManager>();
+    // Code to follow
+    std::unique_ptr<CameraManager> cm = std::make_unique<CameraManager>();
     cm->start();
+    
+    
+    auto cameras = cm->cameras();
+    if (cameras.empty()) {
+        std::cout << "No cameras were identified on the system."
+                << std::endl;
+        cm->stop();
+        return EXIT_FAILURE;
+    }
+
+    std::string cameraId = cameras[cameraNumber1]->id();
+    camera1 = cm->get(cameraId);
+
+    cameraId = cameras[cameraNumber2]->id();
+    camera2 = cm->get(cameraId);
+
+    camera1->acquire();
+    camera2->acquire();
+
+    std::unique_ptr<CameraConfiguration> config1 = 
+        camera1->generateConfiguration( { StreamRole::VideoRecording } );
+    std::unique_ptr<CameraConfiguration> config2 = 
+        camera2->generateConfiguration( { StreamRole::VideoRecording } );
+    
+    StreamConfiguration &streamConfig1 = config1->at(0);
+    config1->at(0).pixelFormat = libcamera::PixelFormat(libcamera::formats::RGB888);
+    config1->at(0).size.height = height1;
+    config1->at(0).size.width = width1;
+    config1->validate();
+    camera1->configure(config1.get());
+
+    StreamConfiguration &streamConfig2 = config2->at(0);
+    config2->at(0).pixelFormat = libcamera::PixelFormat(libcamera::formats::RGB888);
+    config2->at(0).size.height = height2;
+    config2->at(0).size.width = width2;
+    config2->validate();
+    camera2->configure(config2.get());
 
 
-    {
-        auto cameras = cm->cameras();
-        auto c= cm->get(cameras[cameraNumber1]->id());
-        VideoHandler cam1{c, width1, height1};
 
-        c = cm->get(cameras[cameraNumber2]->id());
-        VideoHandler cam2{c, width2, height2};
+    imageWidth1 = streamConfig1.size.width;
+    imageHeight1 = streamConfig1.size.height;
+    imageStride1 = streamConfig1.stride;
 
-        cam1.configure();
-        cam2.configure();
+    imageWidth2 = streamConfig2.size.width;
+    imageHeight2 = streamConfig2.size.height;
+    imageStride2 = streamConfig2.stride;
 
-        cam1.startStreaming();
-        cam2.startStreaming();
-                
-        std::thread thread{display2Cameras, std::ref(cam1.getQueueRef()), std::ref(cam1.getQueueMutex()), 
-                                            std::ref(cam2.getQueueRef()), std::ref(cam2.getQueueMutex())};
-        
-        std::unique_lock lck(mtx);
-        cond_var.wait(lck, [](){return stop;});
-        thread.join(); // Wait for the thread to finish
+
+    FrameBufferAllocator *allocator1 = new FrameBufferAllocator(camera1);
+    FrameBufferAllocator *allocator2 = new FrameBufferAllocator(camera2);
+
+
+    for (StreamConfiguration &cfg : *config1) {
+        int ret = allocator1->allocate(cfg.stream());
+        if (ret < 0) {
+            std::cerr << "Can't allocate buffers" << std::endl;
+            return -ENOMEM;
+        }
+
+        size_t allocated = allocator1->buffers(cfg.stream()).size();
+        //std::cout << "Allocated " << allocated << " buffers for stream" << std::endl;
+    }
+    for (StreamConfiguration &cfg : *config2) {
+        int ret = allocator2->allocate(cfg.stream());
+        if (ret < 0) {
+            std::cerr << "Can't allocate buffers" << std::endl;
+            return -ENOMEM;
+        }
+
+        size_t allocated = allocator2->buffers(cfg.stream()).size();
+        //std::cout << "Allocated " << allocated << " buffers for stream" << std::endl;
+    }
+    
+    
+    Stream *stream1 = streamConfig1.stream();
+    const std::vector<std::unique_ptr<FrameBuffer>> &buffers1 = allocator1->buffers(stream1);
+    std::vector<std::unique_ptr<Request>> requests1;
+
+    Stream *stream2 = streamConfig2.stream();
+    const std::vector<std::unique_ptr<FrameBuffer>> &buffers2 = allocator2->buffers(stream2);
+    std::vector<std::unique_ptr<Request>> requests2;
+
+    for (unsigned int i = 0; i < buffers1.size(); ++i) {
+        std::unique_ptr<Request> request = camera1->createRequest();
+        if (!request)
+        {
+            std::cerr << "Can't create request" << std::endl;
+            return -ENOMEM;
+        }
+
+        const std::unique_ptr<FrameBuffer> &buffer = buffers1[i];
+        int ret = request->addBuffer(stream1, buffer.get());
+        if (ret < 0)
+        {
+            std::cerr << "Can't set buffer for request"
+                << std::endl;
+            return ret;
+        }
+
+        requests1.push_back(std::move(request));
+    }
+
+
+    for (unsigned int i = 0; i < buffers2.size(); ++i) {
+        std::unique_ptr<Request> request = camera2->createRequest();
+        if (!request)
+        {
+            std::cerr << "Can't create request" << std::endl;
+            return -ENOMEM;
+        }
+
+        const std::unique_ptr<FrameBuffer> &buffer = buffers2[i];
+        int ret = request->addBuffer(stream2, buffer.get());
+        if (ret < 0)
+        {
+            std::cerr << "Can't set buffer for request"
+                << std::endl;
+            return ret;
+        }
+
+        requests2.push_back(std::move(request));
     }
     
 
+    camera1->requestCompleted.connect(requestComplete1);
+    camera2->requestCompleted.connect(requestComplete2);
+    camera1->start();
+    camera2->start();
+    for (std::unique_ptr<Request> &request : requests1)
+        camera1->queueRequest(request.get());
+
+    for (std::unique_ptr<Request> &request : requests2)
+        camera2->queueRequest(request.get());
+
+
+
+
+    std::thread t(display2Cameras);
+    {
+        std::unique_lock lck(mtx);
+        cond_var.wait(lck, [](){return cond;});
+    }
+    t.join();
+    camera1->stop();
+    allocator1->free(stream1);
+    delete allocator1;
+    camera1->release();
+    camera1.reset();
+
+    camera2->stop();
+    allocator2->free(stream2);
+    delete allocator2;
+    camera2->release();
+    camera2.reset();
+    
     cm->stop();
+    return 0;
 }
+
+
+
+
+// #include <iomanip>
+// #include <iostream>
+// #include <memory>
+// #include <sys/mman.h>
+// #include <functional>
+
+// #include <libcamera/camera.h>
+// #include <libcamera/camera_manager.h>
+// #include <libcamera/framebuffer.h>
+// #include <libcamera/framebuffer_allocator.h>
+// #include <libcamera/formats.h>
+
+
+// #include <opencv2/opencv.hpp>
+// #include <condition_variable>
+// #include <thread>
+// #include <mutex>
+// #include <boost/circular_buffer.hpp>
+
+// #include <chrono>
+// using namespace std::chrono_literals;
+
+// void m(libcamera::Request* r)
+// {
+//     std::cout<<"LOLOLOLOLO\n";
+// }
+
+// class VideoHandler
+// {
+//     private:
+//     bool cond;
+
+//     size_t width;
+//     size_t height;
+//     size_t stride;
+//     libcamera::PixelFormat pixelFormat;
+    
+//     boost::circular_buffer<cv::Mat> queue;
+//     std::mutex queue_mtx; // Added a mutex to protect the queue
+
+//     std::shared_ptr<libcamera::Camera> camera;
+
+
+//     libcamera::Stream *stream;
+//     libcamera::FrameBufferAllocator *allocator;
+//     std::unique_ptr<libcamera::CameraConfiguration> config;
+
+//     std::shared_ptr<libcamera::StreamConfiguration> streamConfig;
+
+//     public:
+//     VideoHandler(  std::shared_ptr<libcamera::Camera> camera, 
+//                     size_t width, size_t height, size_t queue_size = 5,
+//                     libcamera::PixelFormat pixelFormat = libcamera::formats::RGB888):
+
+//                     height{height}, width{width}, camera{camera},
+//                     cond{true}, pixelFormat{pixelFormat}, 
+//                     queue{queue_size}, streamConfig{}
+//     {
+//         camera->acquire();
+//     }
+
+//     void configure()
+//     {
+//         config = 
+//             camera->generateConfiguration( { libcamera::StreamRole::VideoRecording } );
+//         streamConfig = std::make_shared<libcamera::StreamConfiguration>(config->at(0));
+        
+//         config->at(0).pixelFormat   =   pixelFormat;
+//         config->at(0).size.height   =   height;
+//         config->at(0).size.width    =   width;
+//         config->validate();
+        
+//         camera->configure(config.get());
+
+//         width   = streamConfig->size.width;
+//         height  = streamConfig->size.height;
+//         stride  = streamConfig->stride;
+//     }
+    
+
+//     void startStreaming()
+//     {
+//         allocator = new libcamera::FrameBufferAllocator(camera);
+//         for (auto &cfg : *config) 
+//         {
+//             int ret = allocator->allocate(cfg.stream());
+//             if (ret < 0) 
+//             {
+//                 std::cerr << "Can't allocate buffers" << std::endl;
+//                 exit(-ENOMEM);
+//             }
+//             size_t allocated = allocator->buffers(cfg.stream()).size();
+//         }
+//         stream = streamConfig->stream();
+//         const std::vector<std::unique_ptr<libcamera::FrameBuffer>> &buffers = allocator->buffers(stream);
+//         std::vector<std::unique_ptr<libcamera::Request>> requests;
+//         for (unsigned int i = 0; i < buffers.size(); ++i) {
+//             std::unique_ptr<libcamera::Request> request = camera->createRequest();
+//             if (!request)
+//             {
+//                 std::cerr << "Can't create request" << std::endl;
+//                 exit(-ENOMEM);
+//             }
+
+//             const std::unique_ptr<libcamera::FrameBuffer> &buffer = buffers[i];
+//             int ret = request->addBuffer(stream, buffer.get());
+//             if (ret < 0)
+//             {
+//                 std::cerr << "Can't set buffer for request"
+//                     << std::endl;
+//                 exit(ret);
+//             }
+
+//             requests.push_back(std::move(request));
+//         }
+
+//         auto l = [this](libcamera::Request* req){
+//             std::cout<<"LOL\n";
+//         };
+//         std::function<void(libcamera::Request* req)> f = m;
+//         std::cout<<"pre"<<this;
+//         camera->requestCompleted.connect(m);
+//         std::cout<<"post\n";
+        
+//         camera->start();
+
+//         for (auto &request : requests)
+//             camera->queueRequest(request.get());
+//     }
+
+//     ~VideoHandler()
+//     {
+        
+//         camera->requestCompleted.disconnect(this, &VideoHandler::requestComplete);
+        
+//         camera->stop();
+//         if (allocator) {
+//             allocator->free(stream);
+//             delete allocator;
+//         }
+//         camera->release();
+//         camera.reset();
+//     }
+
+//     boost::circular_buffer<cv::Mat> getQueue()
+//     {
+//         std::unique_lock<std::mutex> lck(queue_mtx);
+//         return queue;
+//     }
+    
+    
+//     boost::circular_buffer<cv::Mat>& getQueueRef()
+//     {
+//         return queue;
+//     }
+//     std::mutex& getQueueMutex()
+//     {
+//         return queue_mtx;
+//     }
+
+
+//     private:
+//     void requestComplete(libcamera::Request* request)
+//     {
+//         std::cout<<"LOLOLOL\n";
+//         if(!cond)
+//             return;
+
+//         if (request->status() == libcamera::Request::RequestCancelled)
+//             return;
+
+//         const std::map<const libcamera::Stream *, libcamera::FrameBuffer *> &buffers = request->buffers();
+//         for (auto bufferPair : buffers) {
+//             libcamera::FrameBuffer *buffer = bufferPair.second;
+
+//             const libcamera::FrameBuffer::Plane &plane = buffer->planes()[0];
+//             int fd = plane.fd.get();
+
+//             void *memory = mmap(NULL, plane.length, PROT_READ, MAP_SHARED, fd, 0);
+//             if (memory == MAP_FAILED) {
+//                 std::cerr << "mmap failed" << std::endl;
+//                 return;
+//             }
+
+//             // Lock the mutex before pushing to the queue
+//             std::lock_guard<std::mutex> lck(queue_mtx);
+//             cv::Mat rgbFrame(height, width, CV_8UC3, memory, stride);
+//             queue.push_back(rgbFrame.clone()); // It's safer to clone the frame
+            
+//             munmap(memory, plane.length);
+//         }
+
+//         request->reuse(libcamera::Request::ReuseBuffers);
+//         camera->queueRequest(request);
+//     }
+// };
+
+// std::condition_variable cond_var;
+// std::mutex mtx;
+// bool stop = false;
+
+// void display2Cameras(   boost::circular_buffer<cv::Mat>& q1, std::mutex& mtx1,
+//                         boost::circular_buffer<cv::Mat>& q2, std::mutex& mtx2
+//                     )
+// {
+//     cv::Mat m1, m2;
+//     cv::namedWindow("Display 2 cameras", cv::WINDOW_NORMAL);
+//     while(true)
+//     {  
+//         {
+//             std::lock_guard<std::mutex> lck1(mtx1);
+//             if(!q1.empty())
+//             {
+//                 m1 = q1.front();
+//                 q1.pop_front();
+//             }
+//         }
+//         {
+//             std::lock_guard<std::mutex> lck2(mtx2);
+//             if(!q2.empty())
+//             {
+//                 m2 = q2.front();
+//                 q2.pop_front();
+//             }
+//         }
+        
+
+//         cv::Mat disp;
+//         if (!m1.empty() && !m2.empty())
+//         {
+//             cv::hconcat(m1, m2, disp);
+//             cv::imshow("Display 2 cameras", disp);
+//         }
+//         else if (!m1.empty())
+//         {
+//             cv::imshow("Display 2 cameras", m1);
+//         }
+//         else if (!m2.empty())
+//         {
+//             cv::imshow("Display 2 cameras", m2);
+//         }
+        
+//         int key = cv::waitKey(1);
+//         switch(key)
+//         {
+//             case 27:
+//             case 'q':
+//             case 'Q':
+//             {
+//                 std::unique_lock lck{mtx};
+//                 stop = true;
+//                 cond_var.notify_one();
+//                 return;
+//             }
+//             break;
+//         }
+//     }
+// }
+
+
+
+
+// int main(int argc, char** argv)
+// {
+//      if (argc < 7) 
+//     {
+//         std::cerr << "Usage: " << argv[0] << " id width height id2 width2 height2" << std::endl;
+//         return -1;
+//     }
+
+//     int cameraNumber1{}, width1{}, height1{};
+//     int cameraNumber2{}, width2{}, height2{};
+    
+//     try
+//     {
+//         cameraNumber1 = std::stoi(argv[1]);
+//         width1 = std::stoi(argv[2]);
+//         height1 = std::stof(argv[3]);
+
+//         cameraNumber2 = std::stoi(argv[4]);
+//         width2 = std::stoi(argv[5]);
+//         height2 = std::stof(argv[6]);
+//     }
+//     catch(...)
+//     {
+//         std::cerr << "Usage: " << argv[0] << " id width height id2 width2 height2" << std::endl;
+//         return -1;
+//     }
+
+
+//     std::unique_ptr<libcamera::CameraManager> cm = std::make_unique<libcamera::CameraManager>();
+//     cm->start();
+
+
+//     {
+//         auto cameras = cm->cameras();
+//         auto c= cm->get(cameras[cameraNumber1]->id());
+//         VideoHandler cam1{c, width1, height1};
+
+//         c = cm->get(cameras[cameraNumber2]->id());
+//         VideoHandler cam2{c, width2, height2};
+
+//         cam1.configure();
+//         cam2.configure();
+
+//         cam1.startStreaming();
+//         cam2.startStreaming();
+//         std::cout<<"1\n";
+//         std::thread thread{display2Cameras, std::ref(cam1.getQueueRef()), std::ref(cam1.getQueueMutex()), 
+//                                             std::ref(cam2.getQueueRef()), std::ref(cam2.getQueueMutex())};
+        
+//         std::unique_lock lck(mtx);
+//         cond_var.wait(lck, [](){return stop;});
+//         std::cout<<"2\n";
+//         thread.join(); // Wait for the thread to finish
+//     }
+//     std::cout<<"3\n";
+
+//     cm->stop();
+// }
