@@ -134,6 +134,7 @@ int main(int argc, char** argv)
     FrameBufferAllocator *allocator = new FrameBufferAllocator(camera);
 
     for (StreamConfiguration &cfg : *config) {
+        std::cout<<"aici\n";
         int ret = allocator->allocate(cfg.stream());
         if (ret < 0) {
             std::cerr << "Can't allocate buffers" << std::endl;
@@ -146,6 +147,8 @@ int main(int argc, char** argv)
     Stream *stream = streamConfig.stream();
     const std::vector<std::unique_ptr<FrameBuffer>> &buffers = allocator->buffers(stream);
     std::vector<std::unique_ptr<Request>> requests;
+            std::cout<<buffers.size()<<"\n";
+
     for (unsigned int i = 0; i < buffers.size(); ++i) {
         std::unique_ptr<Request> request = camera->createRequest();
         if (!request)
