@@ -13,6 +13,7 @@
 
 #include <condition_variable>
 #include <mutex>
+#include <shared_mutex>
 #include <filesystem>
 
 using namespace libcamera;
@@ -34,6 +35,8 @@ static unsigned int imageStride2;
 bool cond = false;
 std::condition_variable cond_var;
 std::mutex mtx;
+
+std::shared_mutex mtx1, mtx2;
 
 static void requestComplete1(Request *request)
 {
@@ -59,8 +62,11 @@ static void requestComplete1(Request *request)
 
         cv::Mat rgbFrame(height, width, CV_8UC3, memory, stride);
 
-       
-        q1.push_back(rgbFrame.clone());
+        {
+            std::unique_lock lck{mtx1};
+            q1.push_back(rgbFrame.clone());
+        }
+
 
 
         munmap(memory, plane.length);
@@ -96,7 +102,10 @@ static void requestComplete2(Request *request)
         cv::Mat rgbFrame(height, width, CV_8UC3, memory, stride);
 
        
-        q2.push_back(rgbFrame.clone());
+        {
+            std::unique_lock lck{mtx2};
+            q2.push_back(rgbFrame.clone());
+        }
 
         munmap(memory, plane.length);
     }
@@ -109,21 +118,29 @@ static void requestComplete2(Request *request)
 void display2Cameras()
 {
     cv::Mat m1, m2;
+    int imageCount{0};
     cv::namedWindow("Display 2 cameras", cv::WINDOW_NORMAL);
-    int imageCount = 0;
     while(true)
     {  
         {
             if(!q1.empty())
             {
-                m1 = q1.front();
+                {
+                    std::shared_lock lck{mtx1};
+                    m1 = q1.front();
+                }
+                std::unique_lock lck{mtx1};
                 q1.pop_front();
             }
         }
         {
             if(!q2.empty())
             {
-                m2 = q2.front();
+                {
+                    std::shared_lock lck{mtx2};
+                    m2 = q2.front();
+                }
+                std::unique_lock lck{mtx2};
                 q2.pop_front();
             }
         }
@@ -132,9 +149,31 @@ void display2Cameras()
         cv::Mat disp;
         if (!m1.empty() && !m2.empty())
         {
-            cv::hconcat(m1, m2, disp);
+            int height1 = m1.rows;
+            int height2 = m2.rows;
+
+            int maxHeight = std::max(height1, height2);
+
+            cv::Mat m1_padded, m2_padded;
+
+            if (height1 < maxHeight) {
+                int padding = maxHeight - height1;
+                cv::copyMakeBorder(m1, m1_padded, 0, padding, 0, 0, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0)); // pad bottom
+            } else {
+                m1_padded = m1;
+            }
+
+            if (height2 < maxHeight) {
+                int padding = maxHeight - height2;
+                cv::copyMakeBorder(m2, m2_padded, 0, padding, 0, 0, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0)); // pad bottom
+            } else {
+                m2_padded = m2;
+            }
+
+            cv::hconcat(m1_padded, m2_padded, disp);
             cv::imshow("Display 2 cameras", disp);
         }
+
         else if (!m1.empty())
         {
             cv::imshow("Display 2 cameras", m1);

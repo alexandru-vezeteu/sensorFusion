@@ -106,7 +106,7 @@ int main(int argc, char** argv)
     std::cout << "\nFundamental matrix (F):\n" << F << std::endl;
 
 
-    cv::FileStorage fs("stereocalibration_parameters.yml", cv::FileStorage::WRITE);
+    cv::FileStorage fs("stereocalibration_parameters.yaml", cv::FileStorage::WRITE);
     if (fs.isOpened())
     {
         fs << "K1" << K1;
