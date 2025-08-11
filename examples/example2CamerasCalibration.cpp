@@ -25,7 +25,7 @@ int main(int argc, char** argv)
     }
     catch(const std::exception& e)
     {
-        std::cerr << "Usage: " << argv[0] << " <left_image_folder> <right_image_folder> rows columns size(mm)" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <left_image_folder> <right_image_folder> rows columns size"<< std::endl;
     }
     const cv::Size CHECKERBOARD_DIMENSIONS(rows, columns);
 

@@ -11,12 +11,12 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(OpenCV REQUIRED) # Find OpenCV
-find_package(cv_bridge REQUIRED) # Find cv_bridge
+find_package(OpenCV REQUIRED)
+find_package(cv_bridge REQUIRED)
 find_package(rclcpp_components REQUIRED)
 
-add_library(filters SHARED src/filter.cpp) # Assuming your code is in src/filter_node.cpp
-ament_target_dependencies(filters rclcpp sensor_msgs OpenCV cv_bridge rclcpp_components) # Link against the found packages
+add_library(filters SHARED src/filter.cpp)
+ament_target_dependencies(filters rclcpp sensor_msgs OpenCV cv_bridge rclcpp_components)
 
 rclcpp_components_register_node(
     filters
