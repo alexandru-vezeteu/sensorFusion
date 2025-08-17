@@ -8,26 +8,42 @@
 
 int main(int argc, char** argv)
 {
-    if (argc != 6) {
-        std::cerr << "Usage: " << argv[0] << " <left_image_folder> <right_image_folder> rows columns size(mm)" << std::endl;
+    if (argc != 8) {
+        std::cerr << "Usage: " << argv[0] << " <left_image_folder> <left_parameters.yaml> <right_image_folder> <right_parameters.yaml> rows columns size(mm)" << std::endl;
         return -1;
     }
 
     std::string left_folder = argv[1];
-    std::string right_folder = argv[2];
+    std::string right_folder = argv[3];
+    std::filesystem::path left_parameters = argv[2];
+    std::filesystem::path right_parameters = argv[4];
+
+    if(!(std::filesystem::exists(left_folder)       &&
+        std::filesystem::exists(right_folder)       &&
+        std::filesystem::exists(left_parameters)    &&
+        std::filesystem::exists(right_parameters)
+    ))
+    {
+        std::cerr<<"Make sure all the paths are valid."<<std::endl;
+        std::cerr << "Usage: " << argv[0] << " <left_image_folder> <left_parameters.yaml> <right_image_folder> <right_parameters.yaml> rows columns size(mm)" << std::endl;
+        return -1;
+    }
+
     int rows{}, columns{};
     float SQUARE_SIZE{};
     try
     {
-        rows = std::stoi(argv[3]);
-        columns=std::stoi(argv[4]);
-        SQUARE_SIZE = std::stof(argv[5]);
+        rows = std::stoi(argv[5]);
+        columns=std::stoi(argv[6]);
+        SQUARE_SIZE = std::stof(argv[7]);
     }
     catch(const std::exception& e)
     {
-        std::cerr << "Usage: " << argv[0] << " <left_image_folder> <right_image_folder> rows columns size"<< std::endl;
+        std::cerr << "Usage: " << argv[0] << " <left_image_folder> <left_parameters.yaml> <right_image_folder> <right_parameters.yaml> rows columns size(mm)" << std::endl;
     }
-    const cv::Size CHECKERBOARD_DIMENSIONS(rows, columns);
+
+
+    const cv::Size CHECKERBOARD_DIMENSIONS(columns, rows);
 
     std::vector<cv::String> left_images, right_images;
     cv::glob(left_folder, left_images);
@@ -89,6 +105,15 @@ int main(int argc, char** argv)
 
     std::cout << "\nStarting stereocalibration..." << std::endl;
     cv::Mat K1, D1, K2, D2, R, T, E, F;
+
+    cv::FileStorage f1(left_parameters, cv::FileStorage::READ);
+    cv::FileStorage f2(right_parameters, cv::FileStorage::READ);
+    f1["camera_matrix"]>>K1;
+    f1["dist_coeffs"]>>D1;
+    f2["camera_matrix"]>>K2;
+    f2["dist_coeffs"]>>D2;
+    f1.release();
+    f2.release();
     double rms = cv::stereoCalibrate(object_points, left_image_points, right_image_points,
                                       K1, D1, K2, D2, image_size, R, T, E, F,
                                       cv::CALIB_FIX_INTRINSIC,
@@ -109,10 +134,10 @@ int main(int argc, char** argv)
     cv::FileStorage fs("stereocalibration_parameters.yaml", cv::FileStorage::WRITE);
     if (fs.isOpened())
     {
-        fs << "K1" << K1;
-        fs << "D1" << D1;
-        fs << "K2" << K2;
-        fs << "D2" << D2;
+        fs << "K_left" << K1;
+        fs << "D_left" << D1;
+        fs << "K_right" << K2;
+        fs << "D_right" << D2;
         fs << "R" << R;
         fs << "T" << T;
         fs.release();

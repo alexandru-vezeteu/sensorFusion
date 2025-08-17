@@ -14,6 +14,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <shared_mutex>
+#include <filesystem>
 
 using namespace libcamera;
 using namespace std::chrono_literals;
@@ -31,14 +32,15 @@ static unsigned int imageWidth2;
 static unsigned int imageHeight2;
 static unsigned int imageStride2;
 
-bool cond = false;
-std::condition_variable cond_var;
-std::mutex mtx;
+std::atomic_bool cond {false};
+
 
 std::shared_mutex mtx1, mtx2;
 
 static void requestComplete1(Request *request)
 {
+    if(cond)
+        return;
     if (request->status() == Request::RequestCancelled)
         return;
 
@@ -78,6 +80,8 @@ static void requestComplete1(Request *request)
 
 static void requestComplete2(Request *request)
 {
+    if(cond)
+        return;
     if (request->status() == Request::RequestCancelled)
         return;
 
@@ -114,96 +118,159 @@ static void requestComplete2(Request *request)
 }
 
 
+
 void display2Cameras()
 {
+    cv::namedWindow("Disparity", cv::WINDOW_NORMAL);
+    cv::namedWindow("Rectified Stereo Pair", cv::WINDOW_NORMAL);
+    cv::namedWindow("Depth Map", cv::WINDOW_NORMAL);
+
     cv::Mat m1, m2;
-    cv::namedWindow("Display 2 cameras", cv::WINDOW_NORMAL);
-    while(true)
-    {  
+
+    // Load stereo calibration parameters
+    cv::Mat K1, D1, K2, D2, R, T, R1, R2, P1, P2, Q;
+    cv::FileStorage fs("stereocalibration_parameters.yaml", cv::FileStorage::READ);
+    if (!fs.isOpened()) {
+        std::cerr << "Error: Could not open stereocalibration_parameters.yaml" << std::endl;
+        return;
+    }
+    fs["K_left"] >> K1;
+    fs["D_left"] >> D1;
+    fs["K_right"] >> K2;
+    fs["D_right"] >> D2;
+    fs["R"] >> R;
+    fs["T"] >> T;
+    fs.release();
+
+    // Wait for frames
+    while (q1.empty() || q2.empty()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    {
+        std::unique_lock lck1{mtx1};
+        m1 = q1.front();
+    }
+    {
+        std::unique_lock lck2{mtx2};
+        m2 = q2.front();
+    }
+
+    cv::Size image_size = m1.size();
+    std::cout << "Using image size: " << image_size << std::endl;
+
+    // Rectification
+    cv::stereoRectify(K1, D1, K2, D2, image_size, R, T, R1, R2, P1, P2, Q,
+                      cv::CALIB_ZERO_DISPARITY, 0.5, image_size);
+
+    cv::Mat map1x, map1y, map2x, map2y;
+    cv::initUndistortRectifyMap(K1, D1, R1, P1, image_size, CV_32FC1, map1x, map1y);
+    cv::initUndistortRectifyMap(K2, D2, R2, P2, image_size, CV_32FC1, map2x, map2y);
+
+    // Lightweight StereoBM
+    int numDisparities = 16 * 10; // multiple of 16
+    int blockSize = 9;           // odd number
+    auto stereo = cv::StereoBM::create(numDisparities, blockSize);
+
+    while (true)
+    {
         {
-            if(!q1.empty())
-            {
-                {
-                    std::shared_lock lck{mtx1};
-                    m1 = q1.front();
-                }
-                std::unique_lock lck{mtx1};
+            std::unique_lock lck1{mtx1};
+            if (!q1.empty()) {
+                m1 = q1.front();
                 q1.pop_front();
             }
         }
         {
-            if(!q2.empty())
-            {
-                {
-                    std::shared_lock lck{mtx2};
-                    m2 = q2.front();
-                }
-                std::unique_lock lck{mtx2};
+            std::unique_lock lck2{mtx2};
+            if (!q2.empty()) {
+                m2 = q2.front();
                 q2.pop_front();
             }
         }
-        
 
-        cv::Mat disp;
         if (!m1.empty() && !m2.empty())
         {
-            int height1 = m1.rows;
-            int height2 = m2.rows;
+            if (m1.size() != image_size) cv::resize(m1, m1, image_size);
+            if (m2.size() != image_size) cv::resize(m2, m2, image_size);
 
-            int maxHeight = std::max(height1, height2);
+            // Rectify
+            cv::Mat left_rect, right_rect;
+            cv::remap(m1, left_rect, map1x, map1y, cv::INTER_LINEAR);
+            cv::remap(m2, right_rect, map2x, map2y, cv::INTER_LINEAR);
 
-            cv::Mat m1_padded, m2_padded;
+            // Grayscale
+            cv::Mat left_gray, right_gray;
+            cv::cvtColor(left_rect, left_gray, cv::COLOR_BGR2GRAY);
+            cv::cvtColor(right_rect, right_gray, cv::COLOR_BGR2GRAY);
 
-            if (height1 < maxHeight) {
-                int padding = maxHeight - height1;
-                cv::copyMakeBorder(m1, m1_padded, 0, padding, 0, 0, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0)); // pad bottom
-            } else {
-                m1_padded = m1;
+            // Disparity map
+            cv::Mat raw_disparity;
+            stereo->compute(left_gray, right_gray, raw_disparity);
+
+            // Convert to float
+            cv::Mat disparity;
+            raw_disparity.convertTo(disparity, CV_32F, 1.0 / 16.0);
+
+            // Disparity visualization
+            cv::Mat disp_vis;
+            cv::normalize(disparity, disp_vis, 0, 255, cv::NORM_MINMAX, CV_8U);
+            cv::applyColorMap(disp_vis, disp_vis, cv::COLORMAP_JET);
+            cv::imshow("Disparity", disp_vis);
+
+            // // Filter invalid values
+            cv::Mat valid_mask = disparity > 0;
+
+            // Reproject to 3D
+            cv::Mat depth_map;
+            cv::reprojectImageTo3D(disparity, depth_map, Q, true);
+            std::vector<cv::Mat> xyz;
+            cv::split(depth_map, xyz);
+            cv::Mat depth = xyz[2];
+
+            // Filter & visualize depth
+            cv::Mat filtered_depth;
+            depth.copyTo(filtered_depth, valid_mask);
+
+            cv::Mat depth_vis;
+            cv::normalize(filtered_depth, depth_vis, 0, 255, cv::NORM_MINMAX, CV_8U);
+            cv::applyColorMap(depth_vis, depth_vis, cv::COLORMAP_JET);
+            cv::imshow("Depth Map", depth_vis);
+
+            // Draw epipolar lines
+            for (int y = 0; y < image_size.height; y += 20) {
+                cv::line(left_rect, cv::Point(0, y), cv::Point(image_size.width, y), cv::Scalar(0, 255, 0), 1);
+                cv::line(right_rect, cv::Point(0, y), cv::Point(image_size.width, y), cv::Scalar(0, 255, 0), 1);
             }
 
-            if (height2 < maxHeight) {
-                int padding = maxHeight - height2;
-                cv::copyMakeBorder(m2, m2_padded, 0, padding, 0, 0, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0)); // pad bottom
-            } else {
-                m2_padded = m2;
-            }
+            // Show stereo pair
+            cv::Mat stereo_combined;
+            cv::hconcat(left_rect, right_rect, stereo_combined);
+            cv::imshow("Rectified Stereo Pair", stereo_combined);
 
-            cv::hconcat(m1_padded, m2_padded, disp);
-            cv::imshow("Display 2 cameras", disp);
+            // Log disparity
+            double minVal, maxVal;
+            cv::minMaxLoc(disparity, &minVal, &maxVal);
+            std::cout << "Disparity min: " << minVal << ", max: " << maxVal << std::endl;
         }
 
-        else if (!m1.empty())
-        {
-            cv::imshow("Display 2 cameras", m1);
-        }
-        else if (!m2.empty())
-        {
-            cv::imshow("Display 2 cameras", m2);
-        }
-        
         int key = cv::waitKey(1);
-        switch(key)
-        {
-            case 27:
-            case 'q':
-            case 'Q':
-            {
-                std::unique_lock lck{mtx};
-                cond_var.notify_all();
-                cond = true;
-                cv::destroyAllWindows();
-                return;
-            }
-            break;
+        if (key == 27 || key == 'q' || key == 'Q') {
+            cv::destroyAllWindows();
+            cond = true;
+            cond.notify_all();
+            return;
         }
     }
 }
+
+
 
 int main(int argc, char** argv)
 {
     q1 = boost::circular_buffer<cv::Mat>(5);
     q2 = boost::circular_buffer<cv::Mat>(5);
-     if (argc < 7) 
+    if (argc < 7) 
     {
         std::cerr << "Usage: " << argv[0] << " id width height id width height" << std::endl;
         return -1;
@@ -225,6 +292,36 @@ int main(int argc, char** argv)
     catch(...)
     {
         std::cerr << "Usage: " << argv[0] << " id width height id width height" << std::endl;
+        return -1;
+    }
+
+
+
+    std::filesystem::path pics_dir = "pics";
+    std::filesystem::path left = pics_dir/"left";
+    std::filesystem::path right = pics_dir/"right";
+    std::filesystem::path p {};
+    auto vec = {pics_dir, left, right};
+    try 
+    {
+        
+        for(auto& path : vec)
+        {
+            p = path;
+            if (!std::filesystem::exists(path)) 
+            {
+                std::filesystem::create_directory(path);
+                std::cout << "Created directory: " << path << std::endl;
+            }
+            else 
+            {
+                std::cout << "Directory already exists: " << path << std::endl;
+            }
+        }
+    } 
+    catch (const std::filesystem::filesystem_error& e) 
+    {
+        std::cerr << "Error creating directory " << p<<": " << e.what() << std::endl;
         return -1;
     }
 
@@ -370,10 +467,10 @@ int main(int argc, char** argv)
 
 
     std::thread t(display2Cameras);
-    {
-        std::unique_lock lck(mtx);
-        cond_var.wait(lck, [](){return cond;});
-    }
+    
+    cond.wait(true);
+        
+    
     t.join();
     camera1->stop();
     allocator1->free(stream1);

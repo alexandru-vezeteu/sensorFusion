@@ -51,6 +51,7 @@ add_executable(captureExample exampleCapture.cpp)
 add_executable(2camerasExample example2Cameras.cpp)
 add_executable(2camerasCaptureExample example2CamerasCapture.cpp)
 add_executable(2camerasCalibrationExample example2CamerasCalibration.cpp)
+add_executable(2camerasDisparityExample example2CamerasDisparity.cpp)
 
 target_include_directories(displayExample PUBLIC
                             ${OPENGL_INCLUDE_DIRS}  
@@ -127,6 +128,18 @@ target_include_directories(2camerasCalibrationExample PUBLIC
                         )
 target_link_libraries(2camerasCalibrationExample 
                     ${OpenCV_LIBRARIES}
+                    )
+
+
+target_include_directories(2camerasDisparityExample PUBLIC
+                    ${OpenCV_INCLUDE_DIRS}
+                    ${LIBCAMERA_INCLUDE_DIRS}
+                    ${Boost_INCLUDE_DIRS}
+                    )
+target_link_libraries(2camerasDisparityExample
+                    ${OpenCV_LIBRARIES} 
+                    ${LIBCAMERA_LIBRARIES}
+                    Boost::container
                     )
 
 
