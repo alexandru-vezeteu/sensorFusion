@@ -4,12 +4,12 @@
 #include <cv_bridge/cv_bridge.h>
 #include <rclcpp_components/register_node_macro.hpp>
 
-class Filter : public rclcpp::Node
+class BlurFilter : public rclcpp::Node
 {
 public:
 
-    Filter(const rclcpp::NodeOptions & options)
-    : rclcpp::Node("inversat", options)
+    BlurFilter(const rclcpp::NodeOptions & options)
+    : rclcpp::Node("blurFilter", options)
     {
         
         publisher_ = this->create_publisher<sensor_msgs::msg::Image>("/topic/B", 10);
@@ -17,7 +17,8 @@ public:
         subscriber_ = this->create_subscription<sensor_msgs::msg::Image>(
             "/camera/image_raw",
             10,
-            std::bind(&Filter::topic_callback, this, std::placeholders::_1));
+            std::bind(&BlurFilter::topic_callback, this, std::placeholders::_1)
+        );
 
         RCLCPP_INFO(this->get_logger(), "Filter node has been initialized!");
         RCLCPP_INFO(this->get_logger(), "Subscribing to /topic/A and publishing to /topic/B");
@@ -57,16 +58,6 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscriber_;
 };
 
-RCLCPP_COMPONENTS_REGISTER_NODE(Filter)
 
-// int main(int argc, char * argv[])
-// {
-//     rclcpp::init(argc, argv);
 
-//     auto node = std::make_shared<Filter>();
-
-//     rclcpp::spin(node);
-
-//     rclcpp::shutdown();
-//     return 0;
-// }
+RCLCPP_COMPONENTS_REGISTER_NODE(BlurFilter)
