@@ -120,6 +120,7 @@ void display2Cameras()
     cv::Mat m1, m2;
     int imageCount{0};
     cv::namedWindow("Display 2 cameras", cv::WINDOW_NORMAL);
+
     while(true)
     {  
         {
@@ -127,10 +128,10 @@ void display2Cameras()
             {
                 {
                     std::shared_lock lck{mtx1};
-                    m1 = q1.front();
+                    m1 = q1.back();
                 }
                 std::unique_lock lck{mtx1};
-                q1.pop_front();
+                q1.pop_back();
             }
         }
         {
@@ -138,10 +139,10 @@ void display2Cameras()
             {
                 {
                     std::shared_lock lck{mtx2};
-                    m2 = q2.front();
+                    m2 = q2.back();
                 }
                 std::unique_lock lck{mtx2};
-                q2.pop_front();
+                q2.pop_back();
             }
         }
         

@@ -42,12 +42,27 @@ int main(int argc, char** argv)
         std::cerr << "Usage: " << argv[0] << " <left_image_folder> <left_parameters.yaml> <right_image_folder> <right_parameters.yaml> rows columns size(mm)" << std::endl;
     }
 
+    cv::Mat K1, D1, K2, D2, R, T, E, F;
+
+    cv::FileStorage f1(left_parameters, cv::FileStorage::READ);
+    cv::FileStorage f2(right_parameters, cv::FileStorage::READ);
+    f1["camera_matrix"]>>K1;
+    f1["dist_coeffs"]>>D1;
+    f2["camera_matrix"]>>K2;
+    f2["dist_coeffs"]>>D2;
+    f1.release();
+    f2.release();
+
 
     const cv::Size CHECKERBOARD_DIMENSIONS(columns, rows);
 
     std::vector<cv::String> left_images, right_images;
     cv::glob(left_folder, left_images);
     cv::glob(right_folder, right_images);
+
+    std::sort(left_images.begin(), left_images.end());
+    std::sort(right_images.begin(), right_images.end());
+
 
     if (left_images.size() != right_images.size() || left_images.empty()) 
     {
@@ -70,6 +85,8 @@ int main(int argc, char** argv)
     for (size_t i = 0; i < left_images.size(); i++) {
         cv::Mat left_img = cv::imread(left_images[i]);
         cv::Mat right_img = cv::imread(right_images[i]);
+        
+        
 
         if (left_img.empty() || right_img.empty()) {
             continue;
@@ -104,31 +121,15 @@ int main(int argc, char** argv)
     }
 
     std::cout << "\nStarting stereocalibration..." << std::endl;
-    cv::Mat K1, D1, K2, D2, R, T, E, F;
 
-    cv::FileStorage f1(left_parameters, cv::FileStorage::READ);
-    cv::FileStorage f2(right_parameters, cv::FileStorage::READ);
-    f1["camera_matrix"]>>K1;
-    f1["dist_coeffs"]>>D1;
-    f2["camera_matrix"]>>K2;
-    f2["dist_coeffs"]>>D2;
-    f1.release();
-    f2.release();
     double rms = cv::stereoCalibrate(object_points, left_image_points, right_image_points,
                                       K1, D1, K2, D2, image_size, R, T, E, F,
                                       cv::CALIB_FIX_INTRINSIC,
                                       cv::TermCriteria(cv::TermCriteria::EPS | cv::TermCriteria::COUNT, 100, 1e-5));
     
 
-    std::cout << "Stereocalibration complete." << std::endl;
     std::cout << "RMS error: " << rms << std::endl;
-    std::cout << "\nLeft camera matrix (K1):\n" << K1 << std::endl;
-    std::cout << "\nLeft camera distortion (D1):\n" << D1 << std::endl;
-    std::cout << "\nRight camera matrix (K2):\n" << K2 << std::endl;
-    std::cout << "\nRight camera distortion (D2):\n" << D2 << std::endl;
-    std::cout << "\nRotation matrix (R):\n" << R << std::endl;
-    std::cout << "\nTranslation vector (T):\n" << T << std::endl;
-    std::cout << "\nFundamental matrix (F):\n" << F << std::endl;
+
 
 
     cv::FileStorage fs("stereocalibration_parameters.yaml", cv::FileStorage::WRITE);

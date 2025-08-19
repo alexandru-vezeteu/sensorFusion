@@ -119,11 +119,105 @@ static void requestComplete2(Request *request)
 
 
 
+int numDisparities = 8;
+int blockSize = 5;
+int preFilterType = 1;
+int preFilterSize = 1;
+int preFilterCap = 31;
+int minDisparity = 0;
+int textureThreshold = 10;
+int uniquenessRatio = 15;
+int speckleRange = 0;
+int speckleWindowSize = 0;
+int disp12MaxDiff = -1;
+int dispType = CV_16S;
+ //https://learnopencv.com/depth-perception-using-stereo-camera-python-c/
+// Creating an object of StereoSGBM algorithm
+cv::Ptr<cv::StereoBM> stereo = cv::StereoBM::create();
+
+static void on_trackbar1( int, void* )
+{
+  stereo->setNumDisparities(numDisparities*16);
+  numDisparities = numDisparities*16;
+}
+ 
+static void on_trackbar2( int, void* )
+{
+  stereo->setBlockSize(blockSize*2+5);
+  blockSize = blockSize*2+5;
+}
+ 
+static void on_trackbar3( int, void* )
+{
+  stereo->setPreFilterType(preFilterType);
+}
+ 
+static void on_trackbar4( int, void* )
+{
+  stereo->setPreFilterSize(preFilterSize*2+5);
+  preFilterSize = preFilterSize*2+5;
+}
+ 
+static void on_trackbar5( int, void* )
+{
+  stereo->setPreFilterCap(preFilterCap);
+}
+ 
+static void on_trackbar6( int, void* )
+{
+  stereo->setTextureThreshold(textureThreshold);
+}
+ 
+static void on_trackbar7( int, void* )
+{
+  stereo->setUniquenessRatio(uniquenessRatio);
+}
+ 
+static void on_trackbar8( int, void* )
+{
+  stereo->setSpeckleRange(speckleRange);
+}
+ 
+static void on_trackbar9( int, void* )
+{
+  stereo->setSpeckleWindowSize(speckleWindowSize*2);
+  speckleWindowSize = speckleWindowSize*2;
+}
+ 
+static void on_trackbar10( int, void* )
+{
+  stereo->setDisp12MaxDiff(disp12MaxDiff);
+}
+ 
+static void on_trackbar11( int, void* )
+{
+  stereo->setMinDisparity(minDisparity);
+}
+ 
+cv::Mat imgL;
+cv::Mat imgR;
+cv::Mat imgL_gray;
+cv::Mat imgR_gray;
+
+
+
 void display2Cameras()
 {
-    cv::namedWindow("Disparity", cv::WINDOW_NORMAL);
+    cv::namedWindow("disparity", cv::WINDOW_NORMAL);
     cv::namedWindow("Rectified Stereo Pair", cv::WINDOW_NORMAL);
     cv::namedWindow("Depth Map", cv::WINDOW_NORMAL);
+    cv::createTrackbar("numDisparities", "disparity", &numDisparities, 18, on_trackbar1);
+    cv::createTrackbar("blockSize", "disparity", &blockSize, 50, on_trackbar2);
+    cv::createTrackbar("preFilterType", "disparity", &preFilterType, 1, on_trackbar3);
+    cv::createTrackbar("preFilterSize", "disparity", &preFilterSize, 25, on_trackbar4);
+    cv::createTrackbar("preFilterCap", "disparity", &preFilterCap, 62, on_trackbar5);
+    cv::createTrackbar("textureThreshold", "disparity", &textureThreshold, 100, on_trackbar6);
+    cv::createTrackbar("uniquenessRatio", "disparity", &uniquenessRatio, 100, on_trackbar7);
+    cv::createTrackbar("speckleRange", "disparity", &speckleRange, 100, on_trackbar8);
+    cv::createTrackbar("speckleWindowSize", "disparity", &speckleWindowSize, 25, on_trackbar9);
+    cv::createTrackbar("disp12MaxDiff", "disparity", &disp12MaxDiff, 25, on_trackbar10);
+    cv::createTrackbar("minDisparity", "disparity", &minDisparity, 25, on_trackbar11);
+ 
 
     cv::Mat m1, m2;
 
@@ -149,14 +243,16 @@ void display2Cameras()
 
     {
         std::unique_lock lck1{mtx1};
-        m1 = q1.front();
+        m1 = q1.back();
+        q1.pop_back();
     }
     {
         std::unique_lock lck2{mtx2};
-        m2 = q2.front();
+        m2 = q2.back();
+        q2.pop_back();
     }
 
-    cv::Size image_size = m1.size();
+    cv::Size image_size = m2.size();
     std::cout << "Using image size: " << image_size << std::endl;
 
     // Rectification
@@ -167,25 +263,22 @@ void display2Cameras()
     cv::initUndistortRectifyMap(K1, D1, R1, P1, image_size, CV_32FC1, map1x, map1y);
     cv::initUndistortRectifyMap(K2, D2, R2, P2, image_size, CV_32FC1, map2x, map2y);
 
-    // Lightweight StereoBM
-    int numDisparities = 16 * 10; // multiple of 16
-    int blockSize = 9;           // odd number
-    auto stereo = cv::StereoBM::create(numDisparities, blockSize);
+    
 
     while (true)
     {
         {
             std::unique_lock lck1{mtx1};
             if (!q1.empty()) {
-                m1 = q1.front();
-                q1.pop_front();
+                m1 = q1.back();
+                q1.pop_back();
             }
         }
         {
             std::unique_lock lck2{mtx2};
             if (!q2.empty()) {
-                m2 = q2.front();
-                q2.pop_front();
+                m2 = q2.back();
+                q2.pop_back();
             }
         }
 
@@ -194,48 +287,45 @@ void display2Cameras()
             if (m1.size() != image_size) cv::resize(m1, m1, image_size);
             if (m2.size() != image_size) cv::resize(m2, m2, image_size);
 
+
+                        // Grayscale
+            cv::Mat left_gray, right_gray;
+            cv::cvtColor(m1, left_gray, cv::COLOR_BGR2GRAY);
+            cv::cvtColor(m2, right_gray, cv::COLOR_BGR2GRAY);
+
             // Rectify
             cv::Mat left_rect, right_rect;
-            cv::remap(m1, left_rect, map1x, map1y, cv::INTER_LINEAR);
-            cv::remap(m2, right_rect, map2x, map2y, cv::INTER_LINEAR);
+            cv::remap(left_gray, left_rect, map1x, map1y, cv::INTER_LANCZOS4, cv::BORDER_CONSTANT);
+            cv::remap(right_gray, right_rect, map2x, map2y, cv::INTER_LANCZOS4, cv::BORDER_CONSTANT);
 
-            // Grayscale
-            cv::Mat left_gray, right_gray;
-            cv::cvtColor(left_rect, left_gray, cv::COLOR_BGR2GRAY);
-            cv::cvtColor(right_rect, right_gray, cv::COLOR_BGR2GRAY);
+
 
             // Disparity map
             cv::Mat raw_disparity;
-            stereo->compute(left_gray, right_gray, raw_disparity);
+            stereo->compute(left_rect, right_rect, raw_disparity);
 
             // Convert to float
             cv::Mat disparity;
-            raw_disparity.convertTo(disparity, CV_32F, 1.0 / 16.0);
+            raw_disparity.convertTo(disparity, CV_32F, 1.0);
+            disparity = (disparity/16.0f - (float)minDisparity)/((float)numDisparities);
+            cv::Mat aux{};
+            
+            cv::imshow("disparity", disparity);
 
-            // Disparity visualization
-            cv::Mat disp_vis;
-            cv::normalize(disparity, disp_vis, 0, 255, cv::NORM_MINMAX, CV_8U);
-            cv::applyColorMap(disp_vis, disp_vis, cv::COLORMAP_JET);
-            cv::imshow("Disparity", disp_vis);
-
-            // // Filter invalid values
-            cv::Mat valid_mask = disparity > 0;
-
-            // Reproject to 3D
-            cv::Mat depth_map;
-            cv::reprojectImageTo3D(disparity, depth_map, Q, true);
-            std::vector<cv::Mat> xyz;
-            cv::split(depth_map, xyz);
-            cv::Mat depth = xyz[2];
-
-            // Filter & visualize depth
-            cv::Mat filtered_depth;
-            depth.copyTo(filtered_depth, valid_mask);
-
-            cv::Mat depth_vis;
-            cv::normalize(filtered_depth, depth_vis, 0, 255, cv::NORM_MINMAX, CV_8U);
-            cv::applyColorMap(depth_vis, depth_vis, cv::COLORMAP_JET);
-            cv::imshow("Depth Map", depth_vis);
+            
+            cv::Mat points_3D;
+            cv::reprojectImageTo3D(disparity, points_3D, Q, true);
+            cv::Mat depth_map = cv::Mat(points_3D.size(), CV_32F);
+            for (int y = 0; y < points_3D.rows; y++) {
+                for (int x = 0; x < points_3D.cols; x++) {
+                    cv::Vec3f point = points_3D.at<cv::Vec3f>(y, x);
+                    depth_map.at<float>(y, x) = point[2]; // Z = depth
+                }
+            }
+            cv::Mat depth_display;
+            cv::normalize(depth_map, depth_display, 0, 255, cv::NORM_MINMAX);
+            depth_display.convertTo(depth_display, CV_8U);
+            cv::imshow("Depth Map", depth_display);
 
             // Draw epipolar lines
             for (int y = 0; y < image_size.height; y += 20) {
@@ -248,10 +338,7 @@ void display2Cameras()
             cv::hconcat(left_rect, right_rect, stereo_combined);
             cv::imshow("Rectified Stereo Pair", stereo_combined);
 
-            // Log disparity
-            double minVal, maxVal;
-            cv::minMaxLoc(disparity, &minVal, &maxVal);
-            std::cout << "Disparity min: " << minVal << ", max: " << maxVal << std::endl;
+           
         }
 
         int key = cv::waitKey(1);
