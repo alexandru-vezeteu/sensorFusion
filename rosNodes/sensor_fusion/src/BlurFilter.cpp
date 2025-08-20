@@ -7,20 +7,20 @@
 #include <cv_bridge/cv_bridge.h>
 #include <rclcpp_components/register_node_macro.hpp>
 
-
+using namespace sensorFusion;
 
 BlurFilter::BlurFilter(const rclcpp::NodeOptions & options) : rclcpp::Node("blurFilter", options)
 {
-     publisher_ = this->create_publisher<sensor_msgs::msg::Image>("/sensorFusion/blur_filered", 10);
+     publisher_ = this->create_publisher<sensor_msgs::msg::Image>("/sensor_fusion/blur_filter_out", 10);
 
         subscriber_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "/camera",
+            "/sensor_fusion/blur_filter_in",
             10,
             std::bind(&BlurFilter::topic_callback, this, std::placeholders::_1)
         );
 
-        RCLCPP_INFO(this->get_logger(), "Filter node has been initialized!");
-        RCLCPP_INFO(this->get_logger(), "Subscribing to /camera and publishing to /sensorFusion/blur_filered");
+        RCLCPP_INFO(this->get_logger(), "Blur Filter node has been initialized!");
+        RCLCPP_INFO(this->get_logger(), "Subscribing to /sensor_fusion/blur_filter_in and publishing to /sensor_fusion/blur_filter_out");
 }
 
 void BlurFilter::topic_callback(const sensor_msgs::msg::Image::SharedPtr msg) const
@@ -46,5 +46,4 @@ void BlurFilter::topic_callback(const sensor_msgs::msg::Image::SharedPtr msg) co
 
     publisher_->publish(*out_msg.toImageMsg());
 
-    RCLCPP_INFO(this->get_logger(), "Published inverted image to /topic/B");
 }

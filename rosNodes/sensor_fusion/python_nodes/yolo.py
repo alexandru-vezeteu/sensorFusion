@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -12,8 +14,8 @@ class Yolo(Node):
     def __init__(self):
         
         super().__init__('yolo')
-        self.publisher_ = self.create_publisher(Image, 'detected_image', 10)
-        self.subscription = self.create_subscription(Image, '/camera/image_raw', self.callback_received, 10)
+        self.publisher_ = self.create_publisher(Image, '/sensorFusion/yolo_out', 10)
+        self.subscription = self.create_subscription(Image, '/sensorFusion/yolo_in', self.callback_received, 10)
         self.bridge = cv_bridge.CvBridge()
         try:
             self.model = YOLO(MODEL_PATH)

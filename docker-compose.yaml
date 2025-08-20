@@ -48,7 +48,7 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
       - /run/udev:/run/udev:ro
-      - ./rosNodes/sensorFusion:/ros_ws/src/sensorFusion
+      - ./rosNodes/sensor_fusion:/ros_ws/src/sensor_fusion
     privileged: true
     network_mode: host
   

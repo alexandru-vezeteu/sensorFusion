@@ -5,34 +5,34 @@ from launch_ros.actions import ComposableNodeContainer
 
 def generate_launch_description():
     container = ComposableNodeContainer(
-        name = 'preprocess_container',
+        name = 'preprocess_container2',
         namespace='',
         executable='/opt/ros/humble/lib/rclcpp_components/component_container_mt',
         composable_node_descriptions=[
             ComposableNode(
-                package='sensorFusion',
-                plugin='BlurFilter', 
+                package='sensor_fusion',
+                plugin='sensorFusion::BlurFilter', 
                 name='blur_filter',
                 remappings=[
-                    ('/camera', '/camera_from_another_pkg'),
-                    ('/sensorFusion/blur_filtered', '/blur_filtered')
+                    ('camera', '/camera_1')
                 ]
             ),
             ComposableNode(
                 package='camera_ros',
                 plugin='camera::CameraNode',
                 name='camera_left',
-                remappings=[
-                    ('/camera_ros/image_raw', '/camera_from_another_pkg')
-                ],
+                # remappings=[
+                #     ('/camera_left/image_raw', '/camera_2')
+                # ],
                 parameters=[{
-                    'id': 0,
+                    'camera': 1,
                     'width' : 1640,
                     'height' : 1232,
                     'role':'video',
                     'format':'RGB888'
                 }]
-            )
+            ),
+            
         ]
     )
 
