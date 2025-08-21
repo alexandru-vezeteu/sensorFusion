@@ -20,8 +20,8 @@ def getContainer(suffix:str, camera_id:int):
                 ],
                 parameters=[{
                     'camera': camera_id,
-                    'width' : 640,
-                    'height' : 480,
+                    'width' : 1920,
+                    'height' : 1080,
                     'role':'video',
                     'format':'RGB888',
                     'orientation' : 0

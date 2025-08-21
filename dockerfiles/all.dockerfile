@@ -43,6 +43,8 @@ FROM ros:humble-ros-base AS camera_ros_builder
 	RUN apt install ros-humble-rqt-image-view -y
 
 	RUN python3 -m pip install --upgrade meson ninja
+
+    # FOR THE YOLO NODE
 	RUN python3 -m pip install ultralytics
 	RUN python3 -m pip install "numpy<2"
 
@@ -56,15 +58,20 @@ FROM ros:humble-ros-base AS camera_ros_builder
 
 
 	RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
-	RUN echo "export ROS_DOMAIN_ID=5" >> ~/.bashrc
-	RUN echo "export ROS_LOCALHOST_ONLY=0" >> ~/.bashrc
 	RUN cd /ros_ws
 	RUN mkdir src && cd src && git clone https://github.com/christianrauch/camera_ros.git && cd camera_ros && git checkout d6a41a8 && cd ../..
 
+    
 
 
 	RUN rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO --skip-keys=libcamera
 	RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --event-handlers=console_direct+ --symlink-install"
+    
+    COPY "rosPackages/sllidar_ros2" /ros_ws/src/sllidar_ros2/
+    COPY "rosPackages/sensor_fusion" /ros_ws/src/sensor_fusion/
+    COPY "rosPackages/sensor_fusion_messages" /ros_ws/src/sensor_fusion_messages/
+
+    RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --packages-select sensor_fusion_messages sensor_fusion sllidar_ros2 --symlink-install"
 
 
 ENTRYPOINT ["/bin/bash"]
