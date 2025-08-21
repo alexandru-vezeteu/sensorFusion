@@ -48,27 +48,53 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
       - /run/udev:/run/udev:ro
-      - ./rosNodes/sensor_fusion:/ros_ws/src/sensor_fusion
+      - ./rosPackages/sensor_fusion:/ros_ws/src/sensor_fusion
+      - ./rosPackages/sensor_fusion_messages:/ros_ws/src/sensor_fusion_messages
+
+    privileged: true
+#    network_mode: host
+    networks:
+      - test
+
+  cameraROS2:
+    image: camera:ros
+    build:
+      context: .
+      dockerfile: dockerfiles/cameraRos.dockerfile
+    container_name: camera_ros2
+    stdin_open: true                # equivalent to -i
+    tty: true                       # equivalent to -t
+    environment:
+      - DISPLAY=:0
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
+      - /run/udev:/run/udev:ro
+      - ./rosPackages/sensor_fusion:/ros_ws/src/sensor_fusion
+      - ./rosPackages/sensor_fusion_messages:/ros_ws/src/sensor_fusion_messages
+    privileged: true
+#    network_mode: host
+    networks:
+      - test
+
+  
+  yolo:
+    image: yolo:test
+    build:
+      context: .
+      dockerfile: dockerfiles/yolo.dockerfile
+    container_name: yolo_test
+    stdin_open: true                # equivalent to -i
+    tty: true                       # equivalent to -t
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
+      - /run/udev:/run/udev:ro
+      #- ./rosNodes/filters:/ros_ws/src/filters
     privileged: true
     network_mode: host
-  
-  # yolo:
-  #   image: yolo:test
-  #   build:
-  #     context: .
-  #     dockerfile: dockerfiles/yolo.dockerfile
-  #   container_name: yolo_test
-  #   stdin_open: true                # equivalent to -i
-  #   tty: true                       # equivalent to -t
-  #   environment:
-  #     - DISPLAY=${DISPLAY}
-  #     - QT_X11_NO_MITSHM=1
-  #   volumes:
-  #     - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
-  #     - /run/udev:/run/udev:ro
-  #     #- ./rosNodes/filters:/ros_ws/src/filters
-  #   privileged: true
-  #   network_mode: host
   # cameraPipeline:
 
   # lidarNode:
@@ -78,3 +104,7 @@ services:
   # slam:
 
   # fuser:
+
+networks:
+  test:
+    external: true

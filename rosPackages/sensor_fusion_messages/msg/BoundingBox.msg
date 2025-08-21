@@ -1,0 +1,2 @@
+geometry_msgs/Point left_up
+geometry_msgs/Point right_down

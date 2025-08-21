@@ -36,8 +36,4 @@ namespace sensorFusion
 }
 
 
-
-
-
-
 RCLCPP_COMPONENTS_REGISTER_NODE(sensorFusion::Triangulation)

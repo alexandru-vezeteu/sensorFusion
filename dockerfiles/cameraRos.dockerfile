@@ -55,7 +55,7 @@ FROM ros:humble-ros-base AS camera_ros_builder
 
 	RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 	RUN echo "export ROS_DOMAIN_ID=5" >> ~/.bashrc
-	RUN echo "export ROS_LOCALHOST_ONLY=1" >> ~/.bashrc
+	RUN echo "export ROS_LOCALHOST_ONLY=0" >> ~/.bashrc
 	RUN cd /ros_ws
 	RUN mkdir src && cd src && git clone https://github.com/christianrauch/camera_ros.git && cd camera_ros && git checkout d6a41a8 && cd ../..
 

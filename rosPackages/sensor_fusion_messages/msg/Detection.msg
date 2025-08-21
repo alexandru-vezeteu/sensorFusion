@@ -1,3 +1,2 @@
 sensor_msgs/Image image
-geometry_msgs/Point point1
-geometry_msgs/Point point2
+sensor_fusion_messages/BoundingBox[] boxes

@@ -16,11 +16,11 @@ Triangulation::Triangulation(const rclcpp::NodeOptions & options) : rclcpp::Node
 
     publisher_ = this->create_publisher<LaserScan>("/sensorFusion/triangulation_out", 10);
 
-    subscriberLeft_ = std::make_unique<message_filters::Subscriber<Detection>>(this, "/sensor_fusion/yolo_left");
-    subscriberRight_ = std::make_unique<message_filters::Subscriber<Detection>>(this, "/sensor_fusion/yolo_right");
+    subscriberLeft_ = std::make_unique<message_filters::Subscriber<Detection>>(this, "/sensor_fusion/triangulation_in_left");
+    subscriberRight_ = std::make_unique<message_filters::Subscriber<Detection>>(this, "/sensor_fusion/triangulation_in_right");
 
     sync_ = std::make_shared<message_filters::Synchronizer<DetectionPolicy>>(
-        DetectionPolicy(10), *subscriberLeft_, *subscriberRight_
+        DetectionPolicy(3), *subscriberLeft_, *subscriberRight_
     );
 
 
@@ -28,15 +28,15 @@ Triangulation::Triangulation(const rclcpp::NodeOptions & options) : rclcpp::Node
             std::bind(&Triangulation::sync_callback, this, std::placeholders::_1, std::placeholders::_2)
         );
 
-    RCLCPP_INFO(this->get_logger(), "Noise Filter node has been initialized!");
-    RCLCPP_INFO(this->get_logger(), "Subscribing to /sensorFusion/noise_filter_in and publishing to /sensorFusion/noise_filter_out");
+    RCLCPP_INFO(this->get_logger(), "Triangulation r node has been initialized!");
+    RCLCPP_INFO(this->get_logger(), "Subscribing to /sensor_fusion/triangulation_in_left and /sensor_fusion/triangulation_in_right and publishing to /sensor_fusion/triangulation_out");
 }
 
 void Triangulation::sync_callback(
             const Detection::ConstSharedPtr& left_msg, 
             const Detection::ConstSharedPtr& right_msg) const
 {
-    //do stuff
+    RCLCPP_INFO(this->get_logger(), "YEY");
 }
         
 

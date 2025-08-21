@@ -18,6 +18,8 @@
   <depend>opencv</depend>
   <depend>sensor_fusion_messages</depend>
   <depend>message_filters</depend>
+  <depend>geometry_msgs</depend>
+
 
   <exec_depend>ultralytics</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
