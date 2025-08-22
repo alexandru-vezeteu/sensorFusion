@@ -34,34 +34,34 @@ services:
   #   privileged: true
   #   network_mode: host
 
-  cameraROS:
-    image: camera:ros
-    build:
-      context: .
-      dockerfile: dockerfiles/cameraRos.dockerfile
-    container_name: camera_ros
-    stdin_open: true                # equivalent to -i
-    tty: true                       # equivalent to -t
-    environment:
-      - DISPLAY=:0
-      - QT_X11_NO_MITSHM=1
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
-      - /run/udev:/run/udev:ro
-      - ./rosPackages/sensor_fusion:/ros_ws/src/sensor_fusion
-      - ./rosPackages/sensor_fusion_messages:/ros_ws/src/sensor_fusion_messages
+#   cameraROS:
+#     image: camera:ros
+#     build:
+#       context: .
+#       dockerfile: dockerfiles/cameraRos.dockerfile
+#     container_name: camera_ros
+#     stdin_open: true                # equivalent to -i
+#     tty: true                       # equivalent to -t
+#     environment:
+#       - DISPLAY=:0
+#       - QT_X11_NO_MITSHM=1
+#     volumes:
+#       - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
+#       - /run/udev:/run/udev:ro
+#       - ./rosPackages/sensor_fusion:/ros_ws/src/sensor_fusion
+#       - ./rosPackages/sensor_fusion_messages:/ros_ws/src/sensor_fusion_messages
 
-    privileged: true
-#    network_mode: host
-    networks:
-      - test
+#     privileged: true
+# #    network_mode: host
+#     networks:
+#       - test
   
-  all:
+  sensor_fusion:
     image: sensor_fusion:v1
     build:
       context: .
       dockerfile: dockerfiles/all.dockerfile
-    container_name: all
+    container_name: sensor_fusion
     stdin_open: true
     tty: true
     environment:

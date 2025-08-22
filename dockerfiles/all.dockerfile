@@ -59,18 +59,13 @@ FROM ros:humble-ros-base AS camera_ros_builder
 
 	RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 	RUN cd /ros_ws
-	RUN mkdir src && cd src && git clone https://github.com/christianrauch/camera_ros.git && cd camera_ros && git checkout d6a41a8 && cd ../..
+	RUN mkdir src
 
-    
-
-
-	RUN rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO --skip-keys=libcamera
-	RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --event-handlers=console_direct+ --symlink-install"
-    
-    COPY "rosPackages/sllidar_ros2" /ros_ws/src/sllidar_ros2/
+	RUN cd src && git clone https://github.com/christianrauch/camera_ros.git && cd camera_ros && git checkout d6a41a8143ca3a5b6904d049d07b1791dd6a547f && cd ../..
+	RUN cd src && git clone https://github.com/Slamtec/sllidar_ros2.git && cd sllidar_ros2 && git checkout 34300099fadfc772965962dec837bf436706188f && cd ../..
     COPY "rosPackages/sensor_fusion" /ros_ws/src/sensor_fusion/
     COPY "rosPackages/sensor_fusion_messages" /ros_ws/src/sensor_fusion_messages/
-
+	RUN rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO --skip-keys=libcamera
     RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --packages-select sensor_fusion_messages sensor_fusion sllidar_ros2 --symlink-install"
 
 
