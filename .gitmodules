@@ -1,9 +1,3 @@
 [submodule "libs/rplidar"]
 	path = libs/rplidar
 	url = https://github.com/Slamtec/rplidar_sdk.git
-[submodule "rosPackages/sllidar_ros2"]
-	path = rosPackages/sllidar_ros2
-	url = https://github.com/Slamtec/sllidar_ros2.git
-[submodule "rosPackages/camera_ros"]
-	path = rosPackages/camera_ros
-	url = https://github.com/christianrauch/camera_ros.git
