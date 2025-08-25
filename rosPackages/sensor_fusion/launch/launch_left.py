@@ -3,7 +3,7 @@ from launch_ros.actions import Node
 from launch_ros.descriptions import ComposableNode
 from launch_ros.actions import ComposableNodeContainer
 
-def getContainer(suffix:str, camera_id:int):
+def getContainer(suffix:str):
     return ComposableNodeContainer(
         name = f'preprocess_container_{suffix}',
         namespace='',
@@ -11,22 +11,6 @@ def getContainer(suffix:str, camera_id:int):
         respawn=True,
         respawn_delay=0.2,
         composable_node_descriptions=[
-            ComposableNode(
-                package='camera_ros',
-                plugin='camera::CameraNode',
-                name=f'camera_{suffix}',
-                remappings=[
-                    (f'/camera_{suffix}/image_raw', f'/camera_{suffix}')
-                ],
-                parameters=[{
-                    'camera': camera_id,
-                    'width' : 1920,
-                    'height' : 1080,
-                    'role':'video',
-                    'format':'RGB888',
-                    'orientation' : 0
-                }]
-            ),
             ComposableNode(
                 package='sensor_fusion',
                 plugin='sensorFusion::BlurFilter', 
@@ -48,6 +32,26 @@ def getContainer(suffix:str, camera_id:int):
         ]
     )
 
+def getCamera(suffix:str, camera_id:int):
+    return Node(
+            package='camera_ros',
+            executable='camera_node',
+            name=f'camera_{suffix}',
+            remappings=[
+                (f'/camera_{suffix}/image_raw', f'/camera_{suffix}')
+            ],
+            parameters=[{
+                'camera': camera_id,
+                'width' : 1280,
+                'height' : 960,
+                'role':'video',
+                'format':'RGB888',
+                'orientation' : 0
+            }],
+            respawn=True,
+            respawn_delay=0.2
+        )
+
 def getYolo(suffix:str):
     return Node(
             package='sensor_fusion',
@@ -64,10 +68,11 @@ def getYolo(suffix:str):
 
 def generate_launch_description():
 
-
-    container_left = getContainer('left', 0)
+    camera_left = getCamera('left', 0)
+    container_left = getContainer('left')
     yolo_left = getYolo('left')
-    container_right = getContainer('right', 1)
+    container_right = getContainer('right')
+    camera_right = getCamera('right', 1)
     yolo_right = getYolo('right')
 
     triang = Node(
@@ -79,6 +84,12 @@ def generate_launch_description():
                 ('/sensor_fusion/triangulation_in_left',f'/yolo_right'),
                 ('/sensor_fusion/triangulation_in_right', f'/yolo_left')
             ],
+            parameters=[{
+                    'path_to_calib': '/ros_ws/stereo_calib.yaml',
+                    'image_width' : 1280,
+                    'image_height' : 960,
+                    'matching_treshold':100000.0,
+                }],
             respawn=True,
             respawn_delay=0.2
         )
@@ -86,7 +97,10 @@ def generate_launch_description():
     return LaunchDescription([
         container_right,
         yolo_right,
-        container_left, 
         yolo_left,
-        triang
+        container_left,         camera_left,
+        triang,
+
+        camera_right,
+
     ])

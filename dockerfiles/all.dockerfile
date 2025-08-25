@@ -65,16 +65,23 @@ FROM ros:humble-ros-base AS camera_ros_builder
 
 	RUN cd src && git clone https://github.com/christianrauch/camera_ros.git && \
 	cd camera_ros && git checkout d6a41a8143ca3a5b6904d049d07b1791dd6a547f && cd ../..
+	
+
+
 	RUN cd src && git clone https://github.com/Slamtec/sllidar_ros2.git && \
 	cd sllidar_ros2 && git checkout 34300099fadfc772965962dec837bf436706188f && cd ../..
     
-	RUN rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO --skip-keys=libcamera,libopencv
+	RUN rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO --skip-keys=libcamera
+	RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --event-handlers=console_direct+ --symlink-install"
+
 
 
 	COPY "rosPackages/sensor_fusion" /ros_ws/src/sensor_fusion/
     COPY "rosPackages/sensor_fusion_messages" /ros_ws/src/sensor_fusion_messages/
+	COPY "camera_parameters/0.644336.yaml" /ros/_ws/stereo_calib.yaml
 
 
+	RUN chmod u+x /ros_ws/src/sensor_fusion/python_nodes/yolo.py
     RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --packages-select sensor_fusion_messages sensor_fusion --symlink-install"
 
 

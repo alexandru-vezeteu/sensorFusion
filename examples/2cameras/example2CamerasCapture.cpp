@@ -32,6 +32,8 @@ static unsigned int imageWidth2;
 static unsigned int imageHeight2;
 static unsigned int imageStride2;
 
+int start = 0;
+
 bool cond = false;
 std::condition_variable cond_var;
 std::mutex mtx;
@@ -118,7 +120,7 @@ static void requestComplete2(Request *request)
 void display2Cameras()
 {
     cv::Mat m1, m2;
-    int imageCount{0};
+    int imageCount{start};
     cv::namedWindow("Display 2 cameras", cv::WINDOW_NORMAL);
 
     while(true)
@@ -222,7 +224,7 @@ int main(int argc, char** argv)
     q2 = boost::circular_buffer<cv::Mat>(5);
     if (argc < 7) 
     {
-        std::cerr << "Usage: " << argv[0] << " id width height id width height" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " id width height id width height last_pic_num" << std::endl;
         return -1;
     }
 
@@ -238,10 +240,14 @@ int main(int argc, char** argv)
         cameraNumber2 = std::stoi(argv[4]);
         width2 = std::stoi(argv[5]);
         height2 = std::stof(argv[6]);
+        if(argc>7)
+        {
+            start = std::stoi(argv[7]);
+        }
     }
     catch(...)
     {
-        std::cerr << "Usage: " << argv[0] << " id width height id width height" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " id width height id width height last_pic_num" << std::endl;
         return -1;
     }
 

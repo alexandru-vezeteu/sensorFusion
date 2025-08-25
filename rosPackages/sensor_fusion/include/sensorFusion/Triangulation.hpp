@@ -7,6 +7,9 @@
 #include <sensor_fusion_messages/msg/detection.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
 
+#include <opencv2/core.hpp>
+
+
 using Detection=sensor_fusion_messages::msg::Detection;
 using LaserScan=sensor_msgs::msg::LaserScan;
 
@@ -32,6 +35,11 @@ namespace sensorFusion
         std::unique_ptr<message_filters::Subscriber<Detection>> subscriberRight_;
         
         std::shared_ptr<message_filters::Synchronizer<DetectionPolicy>> sync_;
+
+        cv::Mat K_left,K_right, D_left, D_right, R, T, R1, R2, P1, P2, Q;
+        cv::Mat map1x, map1y, map2x, map2y;
+        cv::Size image_size;
+
     };
 }
 

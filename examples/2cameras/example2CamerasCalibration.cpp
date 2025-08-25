@@ -53,6 +53,31 @@ int main(int argc, char** argv)
     f1.release();
     f2.release();
 
+    cv::Size originalSize(3280, 2464);
+    cv::Size newSize(1280,960);
+    double scaleX = static_cast<double>(newSize.width) / originalSize.width;
+    double scaleY = static_cast<double>(newSize.height) / originalSize.height;
+    
+    cv::Mat scaledCameraMatrix = K1.clone();
+    scaledCameraMatrix.at<double>(0, 0) *= scaleX;
+    scaledCameraMatrix.at<double>(1, 1) *= scaleY;
+    scaledCameraMatrix.at<double>(0, 2) *= scaleX;
+    scaledCameraMatrix.at<double>(1, 2) *= scaleY;
+    K1 = cv::getOptimalNewCameraMatrix(
+        scaledCameraMatrix, D1, newSize, 0, newSize
+    );
+
+
+    scaledCameraMatrix = K2.clone();
+    scaledCameraMatrix.at<double>(0, 0) *= scaleX;
+    scaledCameraMatrix.at<double>(1, 1) *= scaleY; 
+    scaledCameraMatrix.at<double>(0, 2) *= scaleX; 
+    scaledCameraMatrix.at<double>(1, 2) *= scaleY; 
+    K2 = cv::getOptimalNewCameraMatrix(
+        scaledCameraMatrix, D2, newSize, 0, newSize
+    );
+
+
 
     const cv::Size CHECKERBOARD_DIMENSIONS(columns, rows);
 
