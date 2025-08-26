@@ -43,7 +43,7 @@ FROM ros:humble-ros-base AS camera_ros_builder
 			libboost-dev \
 			qtbase5-dev libqt5core5a libqt5widgets5 \
 			python3-yaml python3-ply python3-jinja2
-	RUN apt install ros-humble-rqt-image-view -y
+	RUN apt install ros-humble-rviz2 -y
 	RUN python3 -m pip install --upgrade meson ninja
 
     # FOR THE YOLO NODE
