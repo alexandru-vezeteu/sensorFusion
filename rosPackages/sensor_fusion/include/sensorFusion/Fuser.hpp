@@ -22,7 +22,8 @@ namespace sensorFusion
         void triangulation_callback(const LaserScan msg) const;
 
 
-        rclcpp::Publisher<PointCloud>::SharedPtr publisher_;
+        rclcpp::Publisher<PointCloud>::SharedPtr publisherTriangulation_;
+        rclcpp::Publisher<PointCloud>::SharedPtr publisherLidar_;
         
         rclcpp::Subscription<LaserScan>::SharedPtr subscriberLidar_;
         rclcpp::Subscription<LaserScan>::SharedPtr subscriberTriangulation_;

@@ -3,6 +3,14 @@ from launch_ros.actions import Node
 from launch_ros.descriptions import ComposableNode
 from launch_ros.actions import ComposableNodeContainer
 
+
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import IncludeLaunchDescription
+from launch.substitutions import ThisLaunchFileDir
+from launch.substitutions import PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
+
+
 def getContainer(suffix:str):
     return ComposableNodeContainer(
         name = f'preprocess_container_{suffix}',
@@ -93,14 +101,44 @@ def generate_launch_description():
             respawn=True,
             respawn_delay=0.2
         )
+    
+    fuser = Node(
+            package='sensor_fusion',
+            namespace='',
+            executable='fuser_node',
+            name=f'fuser',
+            remappings=[
+                ('/sensor_fusion/fuser_in_lidar',f'/scan'),
+                ('/sensor_fusion/fuser_in_triangulation', f'/sensorFusion/triangulation_out')
+            ],
+            # parameters=[{
+            #         'path_to_calib': '/ros_ws/stereo_calib.yaml',
+            #         'image_width' : 1280,
+            #         'image_height' : 960,
+            #         'matching_treshold':100000.0,
+            #     }],
+            respawn=True,
+            respawn_delay=0.2
+        )
+    
+    lidar = IncludeLaunchDescription(PythonLaunchDescriptionSource([
+        PathJoinSubstitution([
+            FindPackageShare('sllidar_ros2'),
+            'launch',
+            'sllidar_a1_launch.py'
+        ])
+    ]))
 
     return LaunchDescription([
+                camera_right,
+        
         container_right,
         yolo_right,
         yolo_left,
         container_left,         camera_left,
         triang,
+        fuser,
+        lidar,
 
-        camera_right,
 
     ])

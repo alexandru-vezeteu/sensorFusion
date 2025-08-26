@@ -12,7 +12,10 @@ using namespace sensorFusion;
 Fuser::Fuser(const rclcpp::NodeOptions & options) : rclcpp::Node("fuser", options)
 {
 
-    publisher_ = this->create_publisher<PointCloud>("/sensor_fusion/fuser_out", 10);
+    publisherLidar_ = this->create_publisher<PointCloud>("/sensor_fusion/fuser_lidar_out", 10);
+    publisherTriangulation_ = this->create_publisher<PointCloud>("/sensor_fusion/fuser_triangulation_out", 10);
+
+
 
     subscriberLidar_ = this->create_subscription<LaserScan>("/sensor_fusion/fuser_in_lidar", 
                                                             10, 
@@ -25,7 +28,6 @@ Fuser::Fuser(const rclcpp::NodeOptions & options) : rclcpp::Node("fuser", option
     RCLCPP_INFO(this->get_logger(), "Noise Filter node has been initialized!");
     RCLCPP_INFO(this->get_logger(), "Subscribing to sensor_fusion/laserScan_lidar, /sensor_fusion/laserScan_triangulation and publishing to /sensor_fusion/fuser_out");
 }
-
 
 void Fuser::lidar_callback(const LaserScan msg) const
 {
@@ -67,13 +69,13 @@ void Fuser::lidar_callback(const LaserScan msg) const
             *iter_x = x;
             *iter_y = y;
             *iter_z = 0.0f;
-            *iter_r = 255; *iter_g = 0;   *iter_b = 0;   // Red
+            *iter_r = 0; *iter_g = 255;   *iter_b = 0;   // Red
         }
 
         angle += msg.angle_increment;
     }
 
-    publisher_->publish(*cloud);
+    publisherLidar_->publish(*cloud);
 
 }
 
@@ -97,6 +99,35 @@ void Fuser::triangulation_callback(const LaserScan msg) const
     sensor_msgs::PointCloud2Iterator<uint8_t> iter_g(*cloud, "g");
     sensor_msgs::PointCloud2Iterator<uint8_t> iter_b(*cloud, "b");
 
+    float angle = msg.angle_min;
+
+    for (size_t i = 0; i < msg.ranges.size();   ++i,
+                                                ++iter_x, ++iter_y, ++iter_z,
+                                                ++iter_r, ++iter_g, ++iter_b)
+    {
+        float range = msg.ranges[i];
+
+        if (range < msg.range_min || range > msg.range_max || std::isnan(range))
+        {
+            *iter_x = *iter_y = *iter_z = std::numeric_limits<float>::quiet_NaN();
+            *iter_r = *iter_g = *iter_b = 0;
+        }
+        else
+        {
+            float x = range * std::cos(angle);
+            float y = range * std::sin(angle);
+            *iter_x = x;
+            *iter_y = y;
+            *iter_z = 0.0f;
+            *iter_r = 0; *iter_g = 0;   *iter_b = 255;   // Blue
+        }
+
+        angle += msg.angle_increment;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "yey fuser: %zu", cloud->data.size());
+
+    publisherTriangulation_->publish(*cloud);
     
 }
 

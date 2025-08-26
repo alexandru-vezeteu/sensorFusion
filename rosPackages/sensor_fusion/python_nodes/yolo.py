@@ -11,7 +11,7 @@ from rclpy.qos import QoSProfile, QoSHistoryPolicy
 from sensor_fusion_messages.msg import Detection, BoundingBox
 from geometry_msgs.msg import Point
 
-MODEL_PATH = "/ros_ws/yolo11n.pt"
+MODEL_PATH = "/ros_ws/yolov5nu.pt"
 
 class Yolo(Node):
 

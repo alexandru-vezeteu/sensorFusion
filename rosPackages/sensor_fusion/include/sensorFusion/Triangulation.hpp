@@ -26,7 +26,7 @@ namespace sensorFusion
     private:
         void sync_callback(
             const Detection::ConstSharedPtr& left_msg, 
-            const Detection::ConstSharedPtr& right_msg) const;
+            const Detection::ConstSharedPtr& right_msg);
 
 
         rclcpp::Publisher<LaserScan>::SharedPtr publisher_;

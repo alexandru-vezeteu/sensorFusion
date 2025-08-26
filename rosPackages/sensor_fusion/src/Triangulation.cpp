@@ -10,6 +10,7 @@
 
 #include <sensor_fusion_messages/msg/detection.hpp>
 
+
 using namespace sensorFusion;
 
 Triangulation::Triangulation(const rclcpp::NodeOptions & options) : rclcpp::Node("triangulation", options)
@@ -17,7 +18,8 @@ Triangulation::Triangulation(const rclcpp::NodeOptions & options) : rclcpp::Node
     declare_parameter<std::string>("path_to_calib", "/ros_ws/params.yaml");
     declare_parameter<int>("image_width", 1280);
     declare_parameter<int>("image_height", 960);
-    declare_parameter<double>("matching_treshold", 10.0f);
+    declare_parameter<double>("matching_treshold", 10.0);
+    declare_parameter<double>("min_angle", 0.0);
 
 
     cv::FileStorage fs( get_parameter("path_to_calib").as_string(),
@@ -68,7 +70,7 @@ Triangulation::Triangulation(const rclcpp::NodeOptions & options) : rclcpp::Node
 
 void Triangulation::sync_callback(
             const Detection::ConstSharedPtr& left_msg, 
-            const Detection::ConstSharedPtr& right_msg) const
+            const Detection::ConstSharedPtr& right_msg)
 {
     cv_bridge::CvImageConstPtr left_cv_ptr, right_cv_ptr;
 
@@ -177,9 +179,53 @@ void Triangulation::sync_callback(
     
     auto& p1 = *triangulated_points.begin();
     auto& p2 = *(triangulated_points.begin()+triangulated_points.size()-1);
-    RCLCPP_INFO(this->get_logger(), "3D Point: [%.2f, %.2f, %.2f]-[%.2f, %.2f, %.2f]", p1.x/10, p1.y/10, p1.z/10, p2.x/10, p2.y/10, p2.z/10);
+    RCLCPP_INFO(this->get_logger(), "3D Point: [%.2f, %.2f, %.2f]-[%.2f, %.2f, %.2f]-%zu", p1.x/10, p1.y/10, p1.z/10, p2.x/10, p2.y/10, p2.z/10, triangulated_points.size());
+
+    std::for_each( 
+                    triangulated_points.begin(), 
+                    triangulated_points.end(), 
+                    [](cv::Point3f& pt){
+                            pt.z*=-1;
+                        }
+    );
+
+    LaserScan scan_msg;
+    scan_msg.header.stamp = this->get_clock()->now();
+    scan_msg.header.frame_id = "laser";
+
+    scan_msg.angle_min = -M_PI;      // -180°
+    scan_msg.angle_max = M_PI;       // +180°
+    scan_msg.angle_increment = M_PI / 360.0;
 
 
+    scan_msg.range_min = 0.1;
+    scan_msg.range_max = 30.0;
+
+    size_t num_bins = std::ceil((scan_msg.angle_max - scan_msg.angle_min) / scan_msg.angle_increment);
+
+    scan_msg.ranges.assign(num_bins, std::numeric_limits<float>::infinity());
+
+    for (const auto& pt : triangulated_points)
+    {
+        float x = pt.x / 1000.0f;  // mm to meters
+        float z = pt.z / 1000.0f;
+
+        float range = std::sqrt(x * x + z * z);
+        float angle = std::atan2(x, z);  // Angle in radians, 0 = forward
+
+        // Filter out invalid angles (shouldn't happen, but safe)
+        if (angle < scan_msg.angle_min || angle >= scan_msg.angle_max)
+            continue;
+
+        size_t index = static_cast<size_t>((angle - scan_msg.angle_min) / scan_msg.angle_increment);
+        if (index >= num_bins)
+            continue;
+
+        if (range < scan_msg.ranges[index])
+            scan_msg.ranges[index] = range;
+    }
+
+    publisher_->publish(scan_msg);
 
     RCLCPP_INFO(this->get_logger(), "YEY");
 }
