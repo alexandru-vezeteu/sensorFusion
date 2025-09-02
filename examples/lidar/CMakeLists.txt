@@ -41,26 +41,26 @@ add_dependencies(
     ${RPLIDAR_LIB}_external_build
 )
 
-add_executable(displayExample exampleDisplay.cpp)
-add_executable(lidarExample exampleLidar.cpp)
+add_executable(display exampleDisplay.cpp)
+add_executable(lidar exampleLidar.cpp)
 
 
-target_include_directories(displayExample PUBLIC
+target_include_directories(display PUBLIC
                             ${OPENGL_INCLUDE_DIRS}  
                             ${GLUT_INCLUDE_DIRS}
                             ${GLEW_INCLUDE_DIRS}
                             ${RPLIDAR_INCLUDE_DIR}
                             )
-target_link_libraries(displayExample
+target_link_libraries(display
                     ${RPLIDAR_LIB}
                     ${GLEW_LIBRARIES}
                     ${OPENGL_LIBRARIES}
                     ${GLUT_LIBRARIES}
                     )
 
-target_include_directories(lidarExample PUBLIC
+target_include_directories(lidar PUBLIC
                         ${RPLIDAR_INCLUDE_DIR}
                         )
-target_link_libraries(lidarExample
+target_link_libraries(lidar
                     ${RPLIDAR_LIB}
                     )       

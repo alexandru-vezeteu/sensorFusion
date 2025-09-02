@@ -10,50 +10,50 @@ pkg_check_modules(LIBCAMERA REQUIRED libcamera)
 
 
 
-add_executable(2camerasExample example2Cameras.cpp)
-add_executable(2camerasCaptureExample example2CamerasCapture.cpp)
-add_executable(2camerasCalibrationExample example2CamerasCalibration.cpp)
-add_executable(2camerasDisparityExample example2CamerasDisparity.cpp)
+add_executable(2cameras example2Cameras.cpp)
+add_executable(2capture example2CamerasCapture.cpp)
+add_executable(stereocalibration example2CamerasCalibration.cpp)
+add_executable(disparity example2CamerasDisparity.cpp)
 
 
 
-target_include_directories(2camerasExample PUBLIC
+target_include_directories(2cameras PUBLIC
                             ${OpenCV_INCLUDE_DIRS}
                             ${LIBCAMERA_INCLUDE_DIRS}
                             ${Boost_INCLUDE_DIRS}
                             )
-target_link_libraries(2camerasExample
+target_link_libraries(2cameras
                     ${OpenCV_LIBRARIES} 
                     ${LIBCAMERA_LIBRARIES}
                     Boost::container
                     )
 
-target_include_directories(2camerasCaptureExample PUBLIC
+target_include_directories(2capture PUBLIC
                             ${OpenCV_INCLUDE_DIRS}
                             ${LIBCAMERA_INCLUDE_DIRS}
                             ${Boost_INCLUDE_DIRS}
                             )
-target_link_libraries(2camerasCaptureExample
+target_link_libraries(2capture
                     ${OpenCV_LIBRARIES} 
                     ${LIBCAMERA_LIBRARIES}
                     Boost::container
                     )
 
 
-target_include_directories(2camerasCalibrationExample PUBLIC
+target_include_directories(stereocalibration PUBLIC
                         ${OpenCV_INCLUDE_DIRS}
                         )
-target_link_libraries(2camerasCalibrationExample 
+target_link_libraries(stereocalibration 
                     ${OpenCV_LIBRARIES}
                     )
 
 
-target_include_directories(2camerasDisparityExample PUBLIC
+target_include_directories(disparity PUBLIC
                     ${OpenCV_INCLUDE_DIRS}
                     ${LIBCAMERA_INCLUDE_DIRS}
                     ${Boost_INCLUDE_DIRS}
                     )
-target_link_libraries(2camerasDisparityExample
+target_link_libraries(disparity
                     ${OpenCV_LIBRARIES} 
                     ${LIBCAMERA_LIBRARIES}
                     Boost::container
