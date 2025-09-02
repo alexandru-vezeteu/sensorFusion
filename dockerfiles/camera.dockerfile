@@ -10,8 +10,12 @@ FROM ros:humble-ros-base AS libcamera_builder
 		python3-yaml python3-ply python3-jinja2
 	RUN python3 -m pip install --upgrade meson ninja
 	
-	RUN git clone https://github.com/raspberrypi/libcamera.git && cd libcamera && git checkout e53bdf1 && cd ..
-	RUN meson setup libcamera/build libcamera/ --buildtype=release -Dpipelines=rpi/vc4,rpi/pisp -Dipas=rpi/vc4,rpi/pisp -Dv4l2=true -Dgstreamer=disabled -Dtest=false -Dlc-compliance=disabled -Dcam=disabled -Dqcam=disabled -Ddocumentation=disabled -Dpycamera=enabled
+	RUN git clone https://github.com/raspberrypi/libcamera.git && \
+	cd libcamera && git checkout e53bdf1f545c2eb7d4ab0e8597cb68c960a4ec20 && cd ..
+
+	RUN meson setup libcamera/build libcamera/ --buildtype=release \
+	-Dpipelines=rpi/vc4,rpi/pisp -Dipas=rpi/vc4,rpi/pisp -Dv4l2=true -Dgstreamer=disabled \
+	-Dtest=false -Dlc-compliance=disabled -Dcam=disabled -Dqcam=disabled -Ddocumentation=disabled -Dpycamera=enabled
 	RUN ninja -C libcamera/build/
 
 FROM ros:humble-ros-base AS kmsxx_builder
@@ -24,7 +28,7 @@ FROM ros:humble-ros-base AS kmsxx_builder
 	RUN python3 -m pip install --upgrade meson ninja
 	
 	RUN git clone https://github.com/tomba/kmsxx.git && \
-	cd kmsxx && git checkout 0f18e6d && \
+	cd kmsxx && git checkout 0f18e6d0616b597fc32bba78b38dfc5c922ec9a4 && \
 	meson setup build . && \
 	ninja -C build/
 
@@ -39,12 +43,8 @@ FROM ros:humble-ros-base AS camera_ros_builder
 			libboost-dev \
 			qtbase5-dev libqt5core5a libqt5widgets5 \
 			python3-yaml python3-ply python3-jinja2
-	
-	RUN apt install ros-humble-rqt-image-view -y
-
 	RUN python3 -m pip install --upgrade meson ninja
-	RUN python3 -m pip install ultralytics
-	RUN python3 -m pip install "numpy<2"
+
 
 
 	COPY --from=kmsxx_builder /kmsxx_build /kmsxx_build
@@ -56,15 +56,26 @@ FROM ros:humble-ros-base AS camera_ros_builder
 
 
 	RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
-	RUN echo "export ROS_DOMAIN_ID=5" >> ~/.bashrc
-	RUN echo "export ROS_LOCALHOST_ONLY=0" >> ~/.bashrc
 	RUN cd /ros_ws
-	RUN mkdir src && cd src && git clone https://github.com/christianrauch/camera_ros.git && cd camera_ros && git checkout d6a41a8 && cd ../..
+	RUN mkdir src
 
-
-
+	RUN cd src && git clone https://github.com/christianrauch/camera_ros.git && \
+	cd camera_ros && git checkout d6a41a8143ca3a5b6904d049d07b1791dd6a547f && cd ../..
+	
+    
 	RUN rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO --skip-keys=libcamera
 	RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --event-handlers=console_direct+ --symlink-install"
+
+
+
+	COPY "rosPackages/sensor_fusion" /ros_ws/src/sensor_fusion/
+    COPY "rosPackages/sensor_fusion_messages" /ros_ws/src/sensor_fusion_messages/
+	COPY "camera_parameters/0.644336.yaml" /ros/_ws/stereo_calib.yaml
+
+
+	RUN chmod u+x /ros_ws/src/sensor_fusion/python_nodes/yolo.py
+    RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --packages-select sensor_fusion_messages sensor_fusion --symlink-install"
+    # run camera cu parametrii de la compose
 
 
 ENTRYPOINT ["/bin/bash"]

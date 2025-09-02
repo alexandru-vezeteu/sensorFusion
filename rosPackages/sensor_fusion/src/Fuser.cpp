@@ -119,7 +119,7 @@ void Fuser::triangulation_callback(const LaserScan msg) const
             *iter_x = x;
             *iter_y = y;
             *iter_z = 0.0f;
-            *iter_r = 0; *iter_g = 0;   *iter_b = 255;   // Blue
+            *iter_r = 255; *iter_g = 0;   *iter_b = 0;   // Blue
         }
 
         angle += msg.angle_increment;

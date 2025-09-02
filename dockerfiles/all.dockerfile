@@ -82,7 +82,7 @@ FROM ros:humble-ros-base AS camera_ros_builder
 
 
 	RUN chmod u+x /ros_ws/src/sensor_fusion/python_nodes/yolo.py
-    RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --packages-select sensor_fusion_messages sensor_fusion --symlink-install"
+    RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --packages-select sensor_fusion_messages sensor_fusion sllidar_ros2 --symlink-install"
 
 
 ENTRYPOINT ["/bin/bash"]

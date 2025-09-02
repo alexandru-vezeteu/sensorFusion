@@ -10,7 +10,7 @@
 
 #include <sensor_fusion_messages/msg/detection.hpp>
 
-
+#include <ranges>
 using namespace sensorFusion;
 
 Triangulation::Triangulation(const rclcpp::NodeOptions & options) : rclcpp::Node("triangulation", options)
@@ -72,37 +72,17 @@ void Triangulation::sync_callback(
             const Detection::ConstSharedPtr& left_msg, 
             const Detection::ConstSharedPtr& right_msg)
 {
-    cv_bridge::CvImageConstPtr left_cv_ptr, right_cv_ptr;
-
-    try 
-    {
-        auto left_img_ptr = std::make_shared<sensor_msgs::msg::Image>(left_msg->image);
-        auto right_img_ptr = std::make_shared<sensor_msgs::msg::Image>(right_msg->image);
-
-        left_cv_ptr = cv_bridge::toCvShare(left_img_ptr, "rgb8");
-        right_cv_ptr = cv_bridge::toCvShare(right_img_ptr, "rgb8");
-    } 
-        catch (cv_bridge::Exception& e) 
-    {
-        RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
-        return;
-    }
-
-    // cv::Mat left_rectified, right_rectified;
-    // cv::remap(left_cv_ptr->image, left_rectified, map1x, map1y, cv::INTER_LINEAR);
-    // cv::remap(right_cv_ptr->image, right_rectified, map2x, map2y, cv::INTER_LINEAR);
-
+    
     std::vector<std::pair<
                         sensor_fusion_messages::msg::BoundingBox, 
                         sensor_fusion_messages::msg::BoundingBox>
                         > matched_boxes;
     const double y_threshold { get_parameter("matching_treshold").as_double() };
 
-    std::vector<bool> right_used(right_msg->boxes.size(), false);  // Track used right boxes
+    std::vector<bool> right_used(right_msg->boxes.size(), false);
 
     for (const auto& left_box : left_msg->boxes)
     {
-        // Compute center of left bounding box
         double left_cx = (left_box.left_up.x + left_box.right_down.x) / 2.0;
         double left_cy = (left_box.left_up.y + left_box.right_down.y) / 2.0;
 
@@ -129,12 +109,11 @@ void Triangulation::sync_callback(
         if (best_index != std::numeric_limits<size_t>::max())
         {
             matched_boxes.emplace_back(std::make_pair(left_box, right_msg->boxes[best_index]));
-            right_used[best_index] = true;  // Mark this right box as used
+            right_used[best_index] = true;
         }
     }
 
     std::vector<cv::Point3f> triangulated_points;
-    RCLCPP_INFO(this->get_logger(), "ehh: %d", static_cast<int>(matched_boxes.size()));
 
     for (const auto& [left_box, right_box] : matched_boxes)
     {
@@ -179,15 +158,13 @@ void Triangulation::sync_callback(
     
     auto& p1 = *triangulated_points.begin();
     auto& p2 = *(triangulated_points.begin()+triangulated_points.size()-1);
-    RCLCPP_INFO(this->get_logger(), "3D Point: [%.2f, %.2f, %.2f]-[%.2f, %.2f, %.2f]-%zu", p1.x/10, p1.y/10, p1.z/10, p2.x/10, p2.y/10, p2.z/10, triangulated_points.size());
 
-    std::for_each( 
-                    triangulated_points.begin(), 
-                    triangulated_points.end(), 
-                    [](cv::Point3f& pt){
-                            pt.z*=-1;
-                        }
-    );
+    auto it = std::remove_if(triangulated_points.begin(), triangulated_points.end(),
+            [](cv::Point3f& pt){return pt.z<0;});
+    
+    triangulated_points.erase(it, triangulated_points.end());
+
+    RCLCPP_INFO(this->get_logger(), "nr de puncte: %zu", triangulated_points.size());
 
     LaserScan scan_msg;
     scan_msg.header.stamp = this->get_clock()->now();
@@ -211,7 +188,7 @@ void Triangulation::sync_callback(
         float z = pt.z / 1000.0f;
 
         float range = std::sqrt(x * x + z * z);
-        float angle = std::atan2(x, z);  // Angle in radians, 0 = forward
+        float angle = std::atan2(-z, x);  // Angle in radians, 0 = forward
 
         // Filter out invalid angles (shouldn't happen, but safe)
         if (angle < scan_msg.angle_min || angle >= scan_msg.angle_max)
@@ -226,8 +203,6 @@ void Triangulation::sync_callback(
     }
 
     publisher_->publish(scan_msg);
-
-    RCLCPP_INFO(this->get_logger(), "YEY");
 }
         
 

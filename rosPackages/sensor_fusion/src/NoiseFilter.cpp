@@ -25,7 +25,7 @@ NoiseFilter::NoiseFilter(const rclcpp::NodeOptions & options) : rclcpp::Node("no
         );
 
     RCLCPP_INFO(this->get_logger(), "Noise Filter node has been initialized!");
-    RCLCPP_INFO(this->get_logger(), "Subscribing to /senso_fusion/noise_filter_in and publishing to /sensor_fusion/noise_filter_out");
+    RCLCPP_INFO(this->get_logger(), "Subscribing to /sensor_fusion/noise_filter_in and publishing to /sensor_fusion/noise_filter_out");
 }
 
 void NoiseFilter::topic_callback(const sensor_msgs::msg::Image::SharedPtr msg) const
@@ -40,14 +40,24 @@ void NoiseFilter::topic_callback(const sensor_msgs::msg::Image::SharedPtr msg) c
         return; 
     }
 
-    cv::Mat inverted_image;
     
-    cv::bitwise_not(cv_ptr->image, inverted_image);
+
+    std::vector<cv::Mat> channels;
+    cv::split(cv_ptr->image, channels);
+
+    for(int i=0;i<3;++i)
+        cv::equalizeHist(channels[i], channels[i]);
+
+    cv::merge(channels, cv_ptr->image);
+    cv::Mat equalized_image = cv_ptr->image;
+
+    cv::Mat denoised_image;
+    cv::medianBlur(equalized_image, denoised_image, 3);
 
     cv_bridge::CvImage out_msg;
     out_msg.header = msg->header; 
     out_msg.encoding = sensor_msgs::image_encodings::RGB8;
-    out_msg.image = cv_ptr->image;
+    out_msg.image = denoised_image;
 
     publisher_->publish(*out_msg.toImageMsg());
 

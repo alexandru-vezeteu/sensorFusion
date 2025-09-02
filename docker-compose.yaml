@@ -1,25 +1,4 @@
 services:
-#   cameraROS:
-#     image: camera:ros
-#     build:
-#       context: .
-#       dockerfile: dockerfiles/cameraRos.dockerfile
-#     container_name: camera_ros
-#     stdin_open: true                # equivalent to -i
-#     tty: true                       # equivalent to -t
-#     environment:
-#       - DISPLAY=:0
-#       - QT_X11_NO_MITSHM=1
-#     volumes:
-#       - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
-#       - /run/udev:/run/udev:ro
-#       - ./rosPackages/sensor_fusion:/ros_ws/src/sensor_fusion
-#       - ./rosPackages/sensor_fusion_messages:/ros_ws/src/sensor_fusion_messages
-
-#     privileged: true
-# #    network_mode: host
-#     networks:
-#       - test
   
   sensor_fusion:
     image: sensor_fusion:v1
@@ -32,7 +11,7 @@ services:
     environment:
       - DISPLAY=:0
       - QT_X11_NO_MITSHM=1
-      - ROS_LOCALHOST_ONLY=0
+      - ROS_LOCALHOST_ONLY=1
       - ROS_DOMAIN_ID=5
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
@@ -42,24 +21,76 @@ services:
     privileged: true
 
 
+  camera_left:
+    image: camera:left
+    build:
+      context: .
+      dockerfile: dockerfiles/camera.dockerfile
+    container_name: camera_left
+    stdin_open: true
+    tty: true
+    environment:
+      - DISPLAY=:0
+      - QT_X11_NO_MITSHM=1
+      - ROS_LOCALHOST_ONLY=0
+      - ROS_DOMAIN_ID=7
+      - ID=0
+      - OUTPUT="/camera_left"
+      - NAME=camera_left
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /run/udev:/run/udev:ro
+    networks:
+      - ros2
+    privileged: true
+
+  camera_right:
+    image: camera:right
+    build:
+      context: .
+      dockerfile: dockerfiles/camera.dockerfile
+    container_name: camera_right
+    stdin_open: true
+    tty: true
+    environment:
+      - DISPLAY=:0
+      - QT_X11_NO_MITSHM=1
+      - ROS_LOCALHOST_ONLY=0
+      - ROS_DOMAIN_ID=7
+      - ID=1
+      - OUTPUT="/camera_right"
+      - NAME=camera_right
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /run/udev:/run/udev:ro
+    networks:
+      - ros2
+    privileged: true
   
-#   yolo:
-#     image: yolo:test
-#     build:
-#       context: .
-#       dockerfile: dockerfiles/yolo.dockerfile
-#     container_name: yolo_test
-#     stdin_open: true                # equivalent to -i
-#     tty: true                       # equivalent to -t
-#     environment:
-#       - DISPLAY=${DISPLAY}
-#       - QT_X11_NO_MITSHM=1
-#     volumes:
-#       - /tmp/.X11-unix:/tmp/.X11-unix  # X11 socket
-#       - /run/udev:/run/udev:ro
-#       #- ./rosNodes/filters:/ros_ws/src/filters
-#     privileged: true
-#     network_mode: host
+  preprocess_left:
+    image: preprocess:left
+    build:
+      context: .
+      dockerfile: dockerfiles/preprocess.dockerfile
+    container_name: preprocess_left
+    stdin_open: true
+    tty: true
+    environment:
+      - DISPLAY=:0
+      - QT_X11_NO_MITSHM=1
+      - ROS_LOCALHOST_ONLY=0
+      - ROS_DOMAIN_ID=7
+      - ID=0
+      - OUTPUT="/camera_left"
+      - NAME=camera_left
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /run/udev:/run/udev:ro
+    networks:
+      - ros2
+    privileged: true
+    
+
   # cameraPipeline:
 
   # lidarNode:
@@ -71,5 +102,5 @@ services:
   # fuser:
 
 networks:
-  test:
+  ros2:
     external: true
