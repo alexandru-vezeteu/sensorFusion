@@ -65,13 +65,13 @@ By using Docker, I can spin up a clean ROS2 environment in seconds, without worr
 
 One of my main motivations for using Docker is to explore and understand the **distributed communication capabilities** of ROS2.
 
-ROS2 nodes communicate over DDS, which enables communication across different machines on a network. Running multiple Docker containers—either on the same host or across different machines—makes it easy to simulate and test multi-node and multi-robot setups, all while keeping environments isolated and reproducible.
+ROS2 nodes communicate over DDS, which enables communication across different machines on a network. Running multiple Docker containers, either on the same host or across different machines, makes it easy to simulate and test multi-node and multi-robot setups, all while keeping environments isolated and reproducible.
 
 This approach allows for:
 
 - Testing **multi-host communication** (e.g., simulating one robot per container or per host).
 - Running **containerized simulations** with tools like Gazebo.
-- Experimenting with **ROS 2 launch files and namespaces** across distributed systems.
+- Experimenting with **ROS 2 launch files** across distributed systems.
 
 ---
 
@@ -87,6 +87,36 @@ Instead of manually configuring every dependency, I can just write a `Dockerfile
 This is especially useful when integrating ROS2 with other tools or libraries (e.g., OpenCV, TensorFlow, or custom robotics SDKs), where compatibility issues can be time-consuming to resolve manually.
 
 ---
+## Project Architecture
+
+# ![figure 1](./pics/arch.png)
+The arhitecture of the project is shown in figure 1. 
+
+### Nodes
+Each ellipse in the diagram represents one or more **ROS2 nodes**.  
+
+### Data Acquisition (Camera Node)
+I have used a ROS2 node that offers support for different kind of camera/stacks. 
+
+### Blur filter and Noise removal
+The blur filter is intentded to filter out blurry images that are not useful for AI detection. Since the setup is static this node is currently left **empty** (no op). The noise removal node performs histogram equalization on each RGB channel and applies a median filter. These 2 nodes have been "composed" which is a way to tell ROS2 to use IPC between these 2 nodes instead of the network stack.
+
+### Detection
+For real-time object detection, I integrated **YOLOv11** (You Only Look Once - version 11) into my system. YOLOv11 is a fast and accurate single-stage object detector, ideal for edge devices like the Raspberry Pi or Jetson platforms due to its efficiency and speed.
+
+I used the **pretrained standard YOLOv11 model**, which was sufficient for general-purpose detection tasks such as identifying vehicles in the camera feed.To integrate YOLOv11 into the ROS2 ecosystem, I wrote a node in Python because I could not get the C++ OpenCV cdnn module to work properly.
+
+
+### Lidar 
+I have used the node provided by the manufacturer Slamtec. The node reads the data and then publish it to a topic /scan.
+
+### Triangulation 
+This node is designated to make a 3D estimation of the points in the area of interest and publish the points in the same format as the lidar node.
+
+### Fuser 
+The node converts the lidar messages to PointCloud2 and the Triangulation messages to PointCloud2 (I have chosen PointCloud2 message because i can assign a color to each point).
+
+---
 
 ## Summary
 
@@ -95,5 +125,3 @@ Using ROS2 inside Docker enables a faster, cleaner, and more controlled developm
 - Quick setup and teardown of environments.
 - Safe experimentation with distributed ROS2 features.
 - Reliable and repeatable builds across machines and team members.
-
-Whether you're prototyping, testing, or deploying, Docker is a powerful tool that enhances the ROS2 development experience.

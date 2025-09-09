@@ -78,7 +78,7 @@ FROM ros:humble-ros-base AS camera_ros_builder
 
 	COPY "rosPackages/sensor_fusion" /ros_ws/src/sensor_fusion/
     COPY "rosPackages/sensor_fusion_messages" /ros_ws/src/sensor_fusion_messages/
-	COPY "camera_parameters/0.644336.yaml" /ros/_ws/stereo_calib.yaml
+	COPY "camera_parameters/0.644336.yaml" /ros_ws/stereo_calib.yaml
 
 
 	RUN chmod u+x /ros_ws/src/sensor_fusion/python_nodes/yolo.py

@@ -64,7 +64,7 @@ Calibration computes the camera’s **intrinsic parameters** (like focal length,
 - Cover different parts of the frame (edges and center).
 - Avoid using compressed or low-resolution images.
 
-> **RMS Error**: The reprojection root mean square (RMS) error reported by OpenCV after calibration should ideally be **under 0.5 pixels**. Anything above 1.0 suggests poor calibration. The best I got is [0.644336](../camera_parameters/0.644336.yaml).
+
 
 ---
 
@@ -92,6 +92,8 @@ Once each camera is calibrated individually, stereo calibration and depth estima
   - These parameters are critical for improving the quality of the depth map and can be configured based on the stereo setup.
 
 > Disparity maps are sensitive to noise, lighting, camera misalignment, and calibration errors. Proper stereo calibration is key to generating usable depth maps.
+
+> **RMS Error**: The reprojection root mean square (RMS) error reported by OpenCV after calibration should ideally be **under 0.5 pixels**. Anything above 1.0 suggests poor calibration. The best I got is [0.644336](../camera_parameters/0.644336.yaml).
 
 ---
 
@@ -121,7 +123,7 @@ Working with cameras on the Raspberry Pi, especially for stereo vision, requires
 - Using **identical CSI cameras** avoids mismatches that complicate stereo calibration.
 - **libcamera** is the recommended interface, and works well when installed from official repositories.
 - Calibration is a critical first step before any stereo or 3D processing.
-- Good calibration images are hard to capture—lighting, angle, and coverage matter.
+- Good calibration images are hard to capture (lighting, angle, and coverage matter).
 - **Stereo calibration** gives you the geometric relationship between cameras, which enables **disparity estimation** and **3D triangulation**.
 
 These tools and processes lay the foundation for integrating stereo vision into more complex systems like ROS2, robotics, or computer vision applications.

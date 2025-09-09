@@ -69,7 +69,7 @@ I used **Visual Studio Code** as my main development environment. It’s lightwe
 I particularly benefited from the following VS Code extensions:
 
 - **Docker Extension**  
-  Allows direct interaction with Docker containers — start, stop, open shells, browse files, and manage containers easily within VS Code.
+  Allows direct interaction with Docker containers: start, stop, open shells, browse files, and manage containers easily within VS Code.
 
 - **Remote - SSH Extension**  
   Enables seamless development over SSH. I could write and run code on the Raspberry Pi while editing files locally from my main machine.
@@ -77,7 +77,7 @@ I particularly benefited from the following VS Code extensions:
 - **Remote - Containers Extension**  
   Lets me open and work inside Docker containers as if they were native environments, with full IntelliSense, debugging, and terminal access.
 
-These tools were lifesavers when dealing with remote development, debugging sensor scripts, and managing ROS2 containers efficiently — all without needing a full desktop experience on the Raspberry Pi itself.
+These tools were lifesavers when dealing with remote development, debugging sensor scripts, and managing ROS2 containers efficiently, all without needing a full desktop experience on the Raspberry Pi itself.
 
 ---
 
